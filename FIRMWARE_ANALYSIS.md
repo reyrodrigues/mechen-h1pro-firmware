@@ -95,7 +95,7 @@ Working copy already exists: `_analysis/system_raw.img` + `vendor_raw.img` (raw 
 
 **Verdict: yes, conditionally** — rebuild the same Linux 3.18 MTK kernel (patches/hardening/features), not a version upgrade. 3.18→4.x would mean porting MTK's whole driver stack (months); KASLR/PAN don't exist on 3.18 arm64 regardless.
 
-Already in hand: exact `.config` (IKCONFIG → `_analysis/kernel_config.txt`), base DTB (`_analysis/boot_out/appended.dtb`, decompile with `dtc`), toolchain target (GCC 4.9 aarch64), and the boot image packaging (gzip kernel + appended DTB, page 2048 — repacker = reverse of `unpack_bootimg.py`).
+Already in hand: exact `.config` (IKCONFIG → `kernel/harness/stock.config`), base DTB (`_analysis/boot_out/appended.dtb`, decompile with `dtc`), toolchain target (GCC 4.9 aarch64), and the boot image packaging (gzip kernel + appended DTB, page 2048 — repacker = reverse of `unpack_bootimg.py`).
 
 Source routes, best-first:
 1. Same-board ecosystem: alps Android 9 MT6750 kernel dumps on GitHub; a TWRP device tree for this exact k50v1_64_bsp board exists (fingerprint from the same blueshark build farm). Est. days.
@@ -108,7 +108,7 @@ Exotic alternative: mainline/postmarketOS — ST7701S panel driver exists in mai
 
 ## 7. Kernel decompilation / RE status (2026-11-18)
 
-The extracted 17.5 MB ARM64 Image (CONFIG_KALLSYMS=y) has been symbolized via `vmlinux-to-elf` (installed in `_analysis/.venv`): **`kernel_with_symbols.elf`** — 46,135 symbols, base `0xffffffc000082000`, loads directly in Ghidra/IDA; `kernel_symbols.txt` holds the flat list. Enables per-function disassembly/pseudo-C (no source recovery — rebuilding still needs real source per §6), kernel-side audits (310 sys_* functions, 1,176 MTK symbols; no backdoor-style names found), and — most usefully — verifying a candidate source dump by building it with our `.config` and diffing symbol addresses against this binary.
+The extracted 17.5 MB ARM64 Image (CONFIG_KALLSYMS=y) has been symbolized via `vmlinux-to-elf` (installed in `_analysis/.venv`): **`kernel_with_symbols_fixed.elf`** — 46,135 symbols, base `0xffffffc000080000` (an earlier version used the wrong base `…82000` and was deleted), loads directly in Ghidra/IDA; `kernel_symbols.txt` holds the flat list. Enables per-function disassembly/pseudo-C (no source recovery — rebuilding still needs real source per §6), kernel-side audits (310 sys_* functions, 1,176 MTK symbols; no backdoor-style names found), and — most usefully — verifying a candidate source dump by building it with our `.config` and diffing symbol addresses against this binary.
 
 ## 8. Artifacts created during this analysis (`_analysis/`)
 

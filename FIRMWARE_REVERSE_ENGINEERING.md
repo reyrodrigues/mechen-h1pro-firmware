@@ -12,7 +12,7 @@ All offline analysis of the firmware package is complete (details in `FIRMWARE_A
 
 - Firmware unpacked: boot/recovery images, recovery ramdisk, kernel Image, base DTB, exact kernel `.config`
 - system/vendor converted to raw ext4 and readable (`_analysis/system_raw.img`, `vendor_raw.img`)
-- Kernel symbolized: `_analysis/kernel_with_symbols.elf` (46,135 symbols, base `0xffffffc000082000`)
+- Kernel symbolized: `_analysis/kernel_with_symbols_fixed.elf` (46,135 symbols, base `0xffffffc000080000`)
 - App layer audited: launcher = `MtkLauncher3`, music = `MusicBspPlus`; threats identified (`SystemLock` HTTP kill-switch at `47.120.15.138:7900`, factory apps, Baidu location, spoofed BLU G90 fingerprint)
 - Boot posture established: no AVB, dm-verity not enforced in normal boot, fastboot + MTK download mode available
 - Feasibility answered: GSI (Android 11 LOS 18.1, arm64 A-only vanilla) viable; kernel rebuild possible **if** matching source is found
@@ -34,11 +34,11 @@ The kernel build is reproducible from a fresh checkout: see `kernel/BUILDING.md`
 | SP Flash Tool (macOS) or mtkclient | ❌ download when needed | full-chip backup/flash (M2) |
 | Ghidra 12.2 | ✅ `ghidra_12.2_PUBLIC/` (local install, fixed for macOS) | interactive kernel RE (M7) |
 
-Ghidra working setup (2026-11-18): official 12.2 ships **no macOS natives** — decompiler built from source for arm64 + x86_64 and installed into `Ghidra/Features/Decompiler/os/mac_{arm,x86}_64/`. Runs on standalone Temurin JDK 25 at `~/jdks/jdk-25.0.5+8` (wired via `JAVA_HOME_OVERRIDE` in `support/launch.properties`). Headless heap raised: `MAXMEM_DEFAULT=8G` in `support/analyzeHeadless` (stock 2G OOMs on this kernel; the script default overrides env vars and launch.properties VMARGS). Ready-made analyzed project: `_analysis/ghidra_proj` → `KernelRE`, containing `kernel_with_symbols.elf` with all 46k symbols + decompiler.
+Ghidra working setup (2026-11-18): official 12.2 ships **no macOS natives** — decompiler built from source for arm64 + x86_64 and installed into `Ghidra/Features/Decompiler/os/mac_{arm,x86}_64/`. Runs on standalone Temurin JDK 25 at `~/jdks/jdk-25.0.5+8` (wired via `JAVA_HOME_OVERRIDE` in `support/launch.properties`). Headless heap raised: `MAXMEM_DEFAULT=8G` in `support/analyzeHeadless` (stock 2G OOMs on this kernel; the script default overrides env vars and launch.properties VMARGS). Ready-made analyzed project: `_analysis/ghidra_proj_v3` → `KernelRE`, containing `kernel_with_symbols_fixed.elf` (correct base, non-returning-function discovery disabled).
 
-> ⚠️ **CORRECTION (2026-11-18): `kernel_with_symbols.elf`, `ghidra_proj/KernelRE` and `_analysis/decompiled/` use the WRONG base address** (`0xffffffc000082000`; vmlinux-to-elf guessed it from `_stext`). The Image header's text_offset is 0x80000, so the true base is `0xffffffc000080000`: every symbol labels code 0x2000 bytes away. Verified: 84% of function symbols hit a prologue at the correct base vs 1% at the old one. Names-only results (M7 symbol matching) are unaffected; any reading of decompiled code from the old corpus is invalid. Fixed: `kernel_with_symbols_fixed.elf` (`--base-address ffffffc000080000`) → `ghidra_proj_fixed/KernelRE`, targeted board-driver decompile in `decompiled_board/`.
+> ⚠️ **CORRECTION (2026-11-18): `kernel_with_symbols.elf`, `ghidra_proj/KernelRE` and `_analysis/decompiled/` use the WRONG base address** (`0xffffffc000082000`; vmlinux-to-elf guessed it from `_stext`). The Image header's text_offset is 0x80000, so the true base is `0xffffffc000080000`: every symbol labels code 0x2000 bytes away. Verified: 84% of function symbols hit a prologue at the correct base vs 1% at the old one. Names-only results (M7 symbol matching) are unaffected; any reading of decompiled code from the old corpus is invalid. Fixed: `kernel_with_symbols_fixed.elf` (`--base-address ffffffc000080000`) → `ghidra_proj_v3/KernelRE` (with `NoNoReturnDiscovery`), board-driver decompiles in `decompiled_board_v3/` and `decompiled_rtc/`. The wrong-base ELF/project/corpus and the intermediate `ghidra_proj_fixed`/`decompiled_board` (truncated at printk) were deleted 2026-11-18.
 
-**Full pseudo-C corpus (2026-11-18, INVALID, see correction above):** `_analysis/decompiled/` — 82,834 functions decompiled (0 failures, 2,921 thunks skipped), ~351 MB, one `.c` per function named `<symbol>_<addr>.c` (unnamed = `FUN_<addr>.c`), plus `_index.tsv` (name, address, size, file, status). ~42.7k named / ~40.1k unnamed. Regenerate via: `support/analyzeHeadless _analysis/ghidra_proj KernelRE -process kernel_with_symbols.elf -noanalysis -scriptPath _analysis/ghidra_scripts -postScript DecompileAll.java <outdir>`. Grep-able; doubles as the M7 source-match comparison corpus.
+**Full pseudo-C corpus:** the original 82k-function corpus was wrong-base and has been deleted. To regenerate a correct one: `support/analyzeHeadless _analysis/ghidra_proj_v3 KernelRE -process kernel_with_symbols_fixed.elf -noanalysis -scriptPath kernel/tools/ghidra -postScript DecompileAll.java <outdir> [nameRegex]`.
 
 ---
 
@@ -111,7 +111,7 @@ Workflow: copy `_analysis/system_raw.img` → edit with `debugfs` (or loop-mount
 - [ ] Search GitHub for alps Android 9 MT6750 kernel dumps (`k50v1_64_bsp`, `kernel/alps`, blueshark-family firmware); check the TWRP k50v1 tree's ecosystem
 - [ ] Alternative trees: MT6755 3.18 GPL releases (Sony Xperia XA, Oppo R9-era, kernel-3.18_t8p, AOSP kernel/mediatek android-3.18)
 - [ ] GPL request to MECHEN sales/support (cheap to send; reference GPL § source obligations) — low expectations
-- [ ] **Verification of any candidate:** build with our `.config` (GCC 4.9 aarch64) → compare symbol addresses against `_analysis/kernel_with_symbols.elf` (large overlap = right source); decompile-diff a few MTK functions if needed
+- [ ] **Verification of any candidate:** build with our `.config` (GCC 4.9 aarch64) → compare symbol addresses against `_analysis/kernel_with_symbols_fixed.elf` (large overlap = right source); decompile-diff a few MTK functions if needed
 - [x] Record here: source found = **base tree yes, board drivers no** (2026-11-18, see results below)
 
 ### M7 results (2026-11-18)
@@ -132,7 +132,7 @@ Of the ~2,800 unmatched names, ~2,400 are macro-generated (ftrace/perf trace eve
 - `xunhubattery` (ODM battery driver), MSA311 accelerometer, S5K3L2 camera sensor init
 - exFAT driver (Samsung-style `ffs*`/`Fs*` API; not under `CONFIG_EXFAT_FS`) — needed for large SD cards; public sources exist
 
-Next: source the Hynitron CST3XX v1.2 and exFAT drivers publicly; rewrite `st7701boe`/`nv3049f` LCM + key/battery drivers from the decompiled corpus (`_analysis/decompiled/`); diff our full config against the defconfig; test-build in Linux/Docker and compare section sizes/symbol addresses.
+Next: source the Hynitron CST3XX v1.2 and exFAT drivers publicly; rewrite `st7701boe`/`nv3049f` LCM + key/battery drivers from the decompiled stock kernel (done: see session log); diff our full config against the defconfig; test-build in Linux/Docker and compare section sizes/symbol addresses.
 
 - [x] Build harness created (2026-11-18): `kernel/` (see `kernel/README.md`). Repacker reproduces stock `boot.img` byte-identically, including the VB1.0 signature: **stock boot is signed with the public AOSP verity test key**. Generic kernel compiles; remaining failures are the board drivers listed above.
 
@@ -185,7 +185,7 @@ Process per series: branch `sec/<series>` in `src/linux` → export to `harness/
 
 ## Ongoing RE (any time, no device needed)
 
-- [ ] Ghidra on `kernel_with_symbols.elf`: audit MTK download-mode USB handling, verify no kernel-side kill-switch counterpart, read audio path if needed for launcher integration
+- [ ] Ghidra on `kernel_with_symbols_fixed.elf` (`ghidra_proj_v3`): audit MTK download-mode USB handling, verify no kernel-side kill-switch counterpart, read audio path if needed for launcher integration
 - [ ] `sdupdate` update.zip signature policy: decompile recovery (`recovery_root/`) enough to know whether an SD-update must be signed — determines whether M4+ can also ship as update.zips
 - [ ] Watch the k50v1 TWRP ecosystem for new device trees/kernel dumps (same ODM family)
 

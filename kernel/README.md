@@ -58,6 +58,6 @@ Not in the source tree and must be ported before a flashable image exists: `st77
 | Hynitron firmware update / proc / sysfs (`hyn_*`, `cst3xx_update_firmware`…) | **intentionally omitted** |
 | AEE powerkey hooks, `hl_tg6*`, S5K3L2 camera, misc | minor |
 
-Decompiled sources for these (correct base!) are produced by `_analysis/ghidra_proj_fixed` (`DecompileAll.java <outdir> <nameRegex>`).
+Decompiled sources for these (correct base!) are produced by `_analysis/ghidra_proj_v3` (`tools/ghidra/DecompileAll.java <outdir> <nameRegex>`).
 
 Note: occasional `Error 132` (SIGILL in cc1 under Rosetta) is an emulation flake. Just re-run.
