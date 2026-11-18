@@ -1,0 +1,94 @@
+From 53a056f952b6bf35d5efc69ee45b26cecd0e33e1 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 19:21:53 +0000
+Subject: [PATCH] Match stock MECHEN kernel ABI for vendor modules:
+ rtc_time.tm_cnt (+36-byte ioctl numbers), 2-callback wmt_platform_bridge
+
+---
+ .../common/wmt_build_in_adapter.c             |  7 ++----
+ .../common/wmt_build_in_adapter.h             |  2 +-
+ include/uapi/linux/rtc.h                      | 23 +++++++++++++++----
+ 3 files changed, 22 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
+index e194a63c..8f1b938f 100644
+--- a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
++++ b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
+@@ -74,7 +74,6 @@ void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb)
+ 		return;
+ 	bridge.thermal_query_cb = cb->thermal_query_cb;
+ 	bridge.trigger_assert_cb = cb->trigger_assert_cb;
+-	bridge.clock_fail_dump_cb = cb->clock_fail_dump_cb;
+ 	CONNADP_INFO_FUNC("\n");
+ }
+ EXPORT_SYMBOL(wmt_export_platform_bridge_register);
+@@ -111,10 +110,8 @@ int mtk_wcn_cmb_stub_trigger_assert(void)
+ void mtk_wcn_cmb_stub_clock_fail_dump(void)
+ {
+ 	CONNADP_DBG_FUNC("\n");
+-	if (unlikely(!bridge.clock_fail_dump_cb))
+-		CONNADP_WARN_FUNC("Clock fail dump not registered\n");
+-	else
+-		bridge.clock_fail_dump_cb();
++	/* stock MECHEN ABI has no clock_fail_dump callback */
++	CONNADP_WARN_FUNC("Clock fail dump not supported\n");
+ }
+ 
+ /*******************************************************************************
+diff --git a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.h b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.h
+index 7f9edc3b..95d8ef1a 100644
+--- a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.h
++++ b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.h
+@@ -27,7 +27,7 @@ typedef void (*wmt_bridge_connsys_clock_fail_dump_cb)(void);
+ struct wmt_platform_bridge {
+ 	wmt_bridge_thermal_query_cb thermal_query_cb;
+ 	wmt_bridge_trigger_assert_cb trigger_assert_cb;
+-	wmt_bridge_connsys_clock_fail_dump_cb clock_fail_dump_cb;
++	/* stock MECHEN ABI: no clock_fail_dump_cb (vendor wmt_drv.ko passes a 2-pointer struct) */
+ };
+ 
+ void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb);
+diff --git a/include/uapi/linux/rtc.h b/include/uapi/linux/rtc.h
+index 85bbcc99..68ccfbbc 100644
+--- a/include/uapi/linux/rtc.h
++++ b/include/uapi/linux/rtc.h
+@@ -27,6 +27,21 @@ struct rtc_time {
+ 	int tm_wday;
+ 	int tm_yday;
+ 	int tm_isdst;
++	int tm_cnt;	/* MTK: present in the stock MECHEN kernel (modversions CRC of rtc_time64_to_tm) */
++};
++
++/* MTK: ioctl numbers encode the original 36-byte layout (verified in stock rtc_dev_ioctl);
++ * the kernel copies sizeof(struct rtc_time) like stock. */
++struct rtc_time_ori {
++	int tm_sec;
++	int tm_min;
++	int tm_hour;
++	int tm_mday;
++	int tm_mon;
++	int tm_year;
++	int tm_wday;
++	int tm_yday;
++	int tm_isdst;
+ };
+ 
+ /*
+@@ -82,10 +97,10 @@ struct rtc_pll_info {
+  * frameworks' ioctl variable can't matched kernel's.
+  * Adding a original time structure without cnt.
+  */
+-#define RTC_ALM_SET	_IOW('p', 0x07, struct rtc_time) /* Set alarm time  */
+-#define RTC_ALM_READ	_IOR('p', 0x08, struct rtc_time) /* Read alarm time */
+-#define RTC_RD_TIME	_IOR('p', 0x09, struct rtc_time) /* Read RTC time   */
+-#define RTC_SET_TIME	_IOW('p', 0x0a, struct rtc_time) /* Set RTC time    */
++#define RTC_ALM_SET	_IOW('p', 0x07, struct rtc_time_ori) /* Set alarm time  */
++#define RTC_ALM_READ	_IOR('p', 0x08, struct rtc_time_ori) /* Read alarm time */
++#define RTC_RD_TIME	_IOR('p', 0x09, struct rtc_time_ori) /* Read RTC time   */
++#define RTC_SET_TIME	_IOW('p', 0x0a, struct rtc_time_ori) /* Set RTC time    */
+ #define RTC_IRQP_READ	_IOR('p', 0x0b, unsigned long)	 /* Read IRQ rate   */
+ #define RTC_IRQP_SET	_IOW('p', 0x0c, unsigned long)	 /* Set IRQ rate    */
+ #define RTC_EPOCH_READ	_IOR('p', 0x0d, unsigned long)	 /* Read epoch      */
+-- 
+2.39.5 (Apple Git-154)
+

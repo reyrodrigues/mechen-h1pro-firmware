@@ -1,0 +1,35 @@
+From e4be8354878f55d4b89db9c1c36a14dda1ab74a4 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 18:45:22 +0000
+Subject: [PATCH] flashlight/mt6755: drop rt5081 flashlight_device (not on this
+ board, source absent)
+
+---
+ drivers/misc/mediatek/flashlight/src/mt6755/Makefile | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/misc/mediatek/flashlight/src/mt6755/Makefile b/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
+index a2ab8573..563beee2 100644
+--- a/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
++++ b/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
+@@ -27,16 +27,14 @@ flashlight_top-y				+= strobe_main_sid1_part2.o
+ flashlight_top-y				+= strobe_part_id.o
+ flashlight_top-y				+= strobe_sub_sid1_part2.o
+ 
+-obj-$(CONFIG_MTK_FLASHLIGHT)    += flashlight_device.o
++# mp3-harness: flashlight_device (rt5081) is not part of this board; stock kernel has no rt5081 symbols
+ 
+ custom_kernel_flashlight := $(shell echo $(CONFIG_CUSTOM_KERNEL_FLASHLIGHT))
+ 
+ ifneq ($(wildcard $(srctree)/drivers/misc/mediatek/flashlight/src/$(MTK_PLATFORM)/$(ARCH_MTK_PROJECT)/constant_flashlight),)
+ flashlight_top-y				+= $(ARCH_MTK_PROJECT)/strobe_main_sid2_part1.o
+-flashlight_device-y				+= $(ARCH_MTK_PROJECT)/$(custom_kernel_flashlight)/flashlights-rt5081.o
+ else
+ flashlight_top-y				+= strobe_main_sid2_part1.o
+-flashlight_device-y				+= $(custom_kernel_flashlight)/flashlights-rt5081.o
+ endif
+ 
+ 
+-- 
+2.39.5 (Apple Git-154)
+

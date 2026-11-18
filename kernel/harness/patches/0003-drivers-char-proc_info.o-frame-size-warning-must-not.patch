@@ -1,0 +1,24 @@
+From 6bc1a0d891b571fad76266d42a4e73bbf1a37728 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 18:01:36 +0000
+Subject: [PATCH 3/3] drivers/char: proc_info.o frame-size warning must not be
+ fatal (matches stock build)
+
+---
+ drivers/char/Makefile | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/char/Makefile b/drivers/char/Makefile
+index f6e6a514..454aa731 100644
+--- a/drivers/char/Makefile
++++ b/drivers/char/Makefile
+@@ -62,3 +62,6 @@ js-rtc-y = rtc.o
+ 
+ obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
+ obj-$(CONFIG_XILLYBUS)		+= xillybus/
++
++# mp3-harness: stock kernel builds this; GCC 4.9 frame-size check is only a warning there
++CFLAGS_proc_info.o += -Wno-error=frame-larger-than=
+-- 
+2.39.5 (Apple Git-154)
+

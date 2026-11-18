@@ -1,0 +1,39 @@
+From e40a7ac56f7af2fb0e2e1a4306a4ca31e99952b9 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 19:49:43 +0000
+Subject: [PATCH] wmt adapter: export wmt_export_platform_bridge_register with
+ stock modversions CRC (ABI verified)
+
+---
+ .../connectivity/common/wmt_build_in_adapter.c    | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
+index 8f1b938f..c7192192 100644
+--- a/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
++++ b/drivers/misc/mediatek/connectivity/common/wmt_build_in_adapter.c
+@@ -76,7 +76,20 @@ void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb)
+ 	bridge.trigger_assert_cb = cb->trigger_assert_cb;
+ 	CONNADP_INFO_FUNC("\n");
+ }
+-EXPORT_SYMBOL(wmt_export_platform_bridge_register);
++/*
++ * mp3-harness: stock vendor wmt_drv.ko imports this with modversions CRC 0xb0620161.
++ * ABI verified against the stock kernel: its implementation copies exactly two pointers
++ * (thermal_query_cb, trigger_assert_cb) from the caller's struct, matching the 2-member
++ * struct above; only the genksyms declaration text differs. Export with the stock CRC.
++ */
++static const unsigned long __kcrctab_wmt_export_platform_bridge_register
++	__used __attribute__((section("___kcrctab+wmt_export_platform_bridge_register"), unused)) = 0xb0620161;
++static const char __kstrtab_wmt_export_platform_bridge_register[]
++	__attribute__((section("__ksymtab_strings"), aligned(1))) =
++	VMLINUX_SYMBOL_STR(wmt_export_platform_bridge_register);
++__visible const struct kernel_symbol __ksymtab_wmt_export_platform_bridge_register
++	__used __attribute__((section("___ksymtab+wmt_export_platform_bridge_register"), unused))
++	= { (unsigned long)&wmt_export_platform_bridge_register, __kstrtab_wmt_export_platform_bridge_register };
+ 
+ void wmt_export_platform_bridge_unregister(void)
+ {
+-- 
+2.39.5 (Apple Git-154)
+

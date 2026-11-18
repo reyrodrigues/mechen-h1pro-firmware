@@ -1,0 +1,23 @@
+# Whitelist: only our code and docs are tracked.
+/*
+!/.gitignore
+!/README.md
+!/FIRMWARE_ANALYSIS.md
+!/FIRMWARE_REVERSE_ENGINEERING.md
+!/kernel/
+
+/kernel/*
+!/kernel/README.md
+!/kernel/BUILDING.md
+!/kernel/SECURITY.md
+!/kernel/build.sh
+!/kernel/setup.sh
+!/kernel/harness/
+!/kernel/tools/
+
+# never: fetched key (public AOSP test key, re-fetched by setup.sh), caches, third-party clones
+/kernel/harness/keys/
+/kernel/tools/vendor_src/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,56 @@
+From 56c683eacd9ffa8fcaef31f70961c5fcdd7dedca Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 19:11:37 +0000
+Subject: [PATCH] MECHEN linear charger: weak OTG/charger stubs; build stock
+ constant_flashlight leds_strobe
+
+---
+ drivers/misc/mediatek/flashlight/src/mt6755/Makefile  | 3 +++
+ drivers/misc/mediatek/pmic/mt6353/pmic_chr_type_det.c | 4 +++-
+ drivers/misc/mediatek/xhci/xhci-mtk-driver.c          | 4 ++++
+ 3 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/misc/mediatek/flashlight/src/mt6755/Makefile b/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
+index 563beee2..cd5bfd7c 100644
+--- a/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
++++ b/drivers/misc/mediatek/flashlight/src/mt6755/Makefile
+@@ -38,3 +38,6 @@ flashlight_top-y				+= strobe_main_sid2_part1.o
+ endif
+ 
+ 
++
++# mp3-harness: stock flashlight is leds_strobe.c in constant_flashlight/ (constantFlashlightInit)
++obj-$(CONFIG_MTK_FLASHLIGHT)    += $(custom_kernel_flashlight)/
+diff --git a/drivers/misc/mediatek/pmic/mt6353/pmic_chr_type_det.c b/drivers/misc/mediatek/pmic/mt6353/pmic_chr_type_det.c
+index 033041b1..dd23169e 100644
+--- a/drivers/misc/mediatek/pmic/mt6353/pmic_chr_type_det.c
++++ b/drivers/misc/mediatek/pmic/mt6353/pmic_chr_type_det.c
+@@ -55,7 +55,9 @@
+ /* extern function */
+ /* ============================================================ // */
+ bool is_dcp_type = false;
+-extern int First_temp;
++/* mp3-harness: defined by battery_common_fg_20.c, which this board (FG 1.0) does not build */
++int __weak First_temp;
++int __weak mtk_chr_reset_aicr_upper_bound(void) { return 0; }
+ 
+ #if defined(CONFIG_POWER_EXT) || defined(CONFIG_MTK_FPGA)
+ 
+diff --git a/drivers/misc/mediatek/xhci/xhci-mtk-driver.c b/drivers/misc/mediatek/xhci/xhci-mtk-driver.c
+index 517b825c..0d5acedd 100644
+--- a/drivers/misc/mediatek/xhci/xhci-mtk-driver.c
++++ b/drivers/misc/mediatek/xhci/xhci-mtk-driver.c
+@@ -442,6 +442,10 @@ int mtk_is_hub_active(void)
+ }
+ #endif
+ extern int otg_last_flag;
++/* mp3-harness: MECHEN H1-Pro uses the MT6353 linear charger (no switch_charging.o, no OTG boost);
++ * stock kernel has no set_chr_* symbols. Weak no-ops; a switching-charger build overrides them. */
++int __weak set_chr_enable_otg(unsigned int enable) { return 0; }
++int __weak set_chr_boost_current_limit(unsigned int current_limit) { return 0; }
+ static void mtk_enable_otg_mode(void)
+ {
+ #if defined(CONFIG_MTK_BQ25898_DUAL_SUPPORT)
+-- 
+2.39.5 (Apple Git-154)
+

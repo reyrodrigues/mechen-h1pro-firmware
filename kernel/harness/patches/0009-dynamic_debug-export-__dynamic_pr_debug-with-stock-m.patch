@@ -1,0 +1,38 @@
+From 1468cebd760e705d6f17b72271898dda7283d30f Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 19:36:10 +0000
+Subject: [PATCH] dynamic_debug: export __dynamic_pr_debug with stock
+ modversions CRC (ABI verified identical)
+
+---
+ lib/dynamic_debug.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/lib/dynamic_debug.c b/lib/dynamic_debug.c
+index 838e4f54..8319d3f7 100644
+--- a/lib/dynamic_debug.c
++++ b/lib/dynamic_debug.c
+@@ -699,7 +699,19 @@ void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...)
+ 
+ 	va_end(args);
+ }
+-EXPORT_SYMBOL(__dynamic_pr_debug);
++/*
++ * mp3-harness: stock MECHEN vendor modules (wmt_drv.ko, gps_drv.ko) import __dynamic_pr_debug
++ * with modversions CRC 0x44b1d426. struct _ddebug is verified layout-identical to stock
++ * (lineno:18 at +0x20, same masks in stock dynamic_emit_prefix/ddebug_proc_show); only the
++ * genksyms declaration text differs. Expanded EXPORT_SYMBOL with the stock CRC pinned.
++ */
++static const unsigned long __kcrctab___dynamic_pr_debug
++	__used __attribute__((section("___kcrctab+__dynamic_pr_debug"), unused)) = 0x44b1d426;
++static const char __kstrtab___dynamic_pr_debug[]
++	__attribute__((section("__ksymtab_strings"), aligned(1))) = VMLINUX_SYMBOL_STR(__dynamic_pr_debug);
++__visible const struct kernel_symbol __ksymtab___dynamic_pr_debug
++	__used __attribute__((section("___ksymtab+__dynamic_pr_debug"), unused))
++	= { (unsigned long)&__dynamic_pr_debug, __kstrtab___dynamic_pr_debug };
+ 
+ void __dynamic_dev_dbg(struct _ddebug *descriptor,
+ 		      const struct device *dev, const char *fmt, ...)
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,108 @@
+From 862aedeebbebbc08f59c1fc13919c98e9bff4842 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Wed, 18 Nov 2026 20:03:06 +0000
+Subject: [PATCH] kpd: MECHEN side keys (prev/next/contacts EINT) recovered
+ from stock kernel
+
+---
+ drivers/input/keyboard/mediatek/kpd.c | 63 +++++++++++++++++++++++++++
+ 1 file changed, 63 insertions(+)
+
+diff --git a/drivers/input/keyboard/mediatek/kpd.c b/drivers/input/keyboard/mediatek/kpd.c
+index 93b9f52d..8ca2efde 100644
+--- a/drivers/input/keyboard/mediatek/kpd.c
++++ b/drivers/input/keyboard/mediatek/kpd.c
+@@ -19,6 +19,9 @@
+ #include <linux/of.h>
+ #include <linux/of_address.h>
+ #include <linux/of_irq.h>
++#include <linux/irq.h>
++#include <linux/interrupt.h>
++#include <linux/gpio.h>
+ #include <linux/clk.h>
+ 
+ #define KPD_NAME	"mtk-kpd"
+@@ -786,6 +789,63 @@ void kpd_get_dts_info(struct device_node *node)
+ 		  kpd_dts_data.kpd_key_debounce, kpd_dts_data.kpd_sw_pwrkey, kpd_dts_data.kpd_hw_pwrkey,
+ 		  kpd_dts_data.kpd_hw_rstkey, kpd_dts_data.kpd_sw_rstkey);
+ }
++
++/*
++ * MECHEN H1-Pro side keys (previous song / next song / "contacts"), recovered from the stock
++ * kernel (previoussongkey_*, nextsongkey_*, contactskey_*, custom_key_eint_register).
++ * Each key is a GPIO EINT described by a DT node (compatible "mediatek,<name>", property
++ * "debounce" = <gpio debounce_us>). The handler flips the trigger level on every edge and reports
++ * the new state on kpd_input_dev. Keycodes are the stock ones (the Android keylayout maps them).
++ */
++struct mp3_side_key {
++	const char *compatible;
++	const char *irq_name;
++	unsigned int keycode;
++	unsigned int irq;
++	unsigned int state;
++};
++
++static struct mp3_side_key mp3_side_keys[] = {
++	{ "mediatek,previoussongkey", "previoussongkey_eint", 100 },	/* stock: KEY_RIGHTALT */
++	{ "mediatek,nextsongkey",     "nextsongkey_eint",     108 },	/* stock: KEY_DOWN */
++	{ "mediatek,contactskey",     "contactskeyt_eint",    103 },	/* stock: KEY_UP (name typo as stock) */
++};
++
++static irqreturn_t mp3_side_key_eint_handler(int irq, void *data)
++{
++	struct mp3_side_key *k = data;
++
++	k->state = !k->state;
++	irq_set_irq_type(k->irq, k->state ? IRQ_TYPE_LEVEL_HIGH : IRQ_TYPE_LEVEL_LOW);
++	input_event(kpd_input_dev, EV_KEY, k->keycode, k->state);
++	input_event(kpd_input_dev, EV_SYN, SYN_REPORT, 0);
++	return IRQ_HANDLED;
++}
++
++static void mp3_side_keys_register(void)
++{
++	unsigned int i, ints[2];
++	struct device_node *node;
++
++	for (i = 0; i < ARRAY_SIZE(mp3_side_keys); i++) {
++		struct mp3_side_key *k = &mp3_side_keys[i];
++
++		node = of_find_compatible_node(NULL, NULL, k->compatible);
++		if (!node) {
++			kpd_info("%s: no DT node\n", k->compatible);
++			continue;
++		}
++		ints[0] = ints[1] = 0;
++		of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
++		gpiod_set_debounce(gpio_to_desc(ints[0]), ints[1]);
++		k->irq = irq_of_parse_and_map(node, 0);
++		if (request_irq(k->irq, mp3_side_key_eint_handler, 0, k->irq_name, k))
++			kpd_info("%s: request_irq failed\n", k->compatible);
++		else
++			irq_set_irq_wake(k->irq, 1);
++	}
++}
++
+ static int kpd_pdrv_probe(struct platform_device *pdev)
+ {
+ 
+@@ -877,6 +937,8 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
+ #ifdef CONFIG_MTK_MRDUMP_KEY
+ 		__set_bit(KEY_RESTART, kpd_input_dev->keybit);
+ #endif
++	for (i = 0; i < ARRAY_SIZE(mp3_side_keys); i++)
++		__set_bit(mp3_side_keys[i].keycode, kpd_input_dev->keybit);	/* stock keybit[1] |= 0x109000000000 */
+ 	kpd_input_dev->dev.parent = &pdev->dev;
+ 	r = input_register_device(kpd_input_dev);
+ 	if (r) {
+@@ -909,6 +971,7 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
+ /* This func use as mrdump now, if powerky use kpd eint it need to open another API */
+ 	mt_eint_register();
+ #endif
++	mp3_side_keys_register();	/* stock: custom_key_eint_register() */
+ 
+ #ifdef CONIFG_KPD_ACCESS_PMIC_REGMAP
+ 	/*kpd_hal access pmic registers via regmap interface*/
+-- 
+2.39.5 (Apple Git-154)
+

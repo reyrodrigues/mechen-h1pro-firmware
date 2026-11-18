@@ -1,0 +1,3 @@
+# Local overrides appended to the stock config (last value wins in olddefconfig).
+# Camera: stock lists the reference-board sensors; only ov5648 exists in the tree.
+CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov5648_mipi_raw"
