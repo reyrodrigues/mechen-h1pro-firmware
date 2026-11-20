@@ -1,0 +1,33 @@
+From 75edda4b15c0a4b5b771ed922f1636fa0c20f290 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 17:04:06 +0000
+Subject: [PATCH] ged: GE_GET output header is 16 bytes like stock libged
+ (fixes hwcomposer getPrivateHandleInfo errors)
+
+---
+ drivers/misc/mediatek/gpu/ged/src/ged_ge.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/misc/mediatek/gpu/ged/src/ged_ge.c b/drivers/misc/mediatek/gpu/ged/src/ged_ge.c
+index 38425c8e..b7ac87db 100644
+--- a/drivers/misc/mediatek/gpu/ged/src/ged_ge.c
++++ b/drivers/misc/mediatek/gpu/ged/src/ged_ge.c
+@@ -366,7 +366,14 @@ int ged_bridge_ge_get(
+ 	 * iOutSize use the sizeof(GED_BRIDGE_OUT_GE_GET)
+ 	 * as header size.
+ 	 */
+-	int header_size = sizeof(struct GED_BRIDGE_OUT_GE_GET);
++	/*
++	 * mp3-harness: the MECHEN H1-Pro vendor libged sizes the output as a 16-byte header + data
++	 * (stock kernel checks out_size - 0x10 == u32_size * 4). This tree used
++	 * sizeof(struct GED_BRIDGE_OUT_GE_GET) == 4, so every GE_GET failed with -EFAULT
++	 * ("data (28 byte) != u32_size (16 byte)") and hwcomposer couldn't read buffer metadata.
++	 * eError/data placement (offset 0 / 4) is unchanged and matches stock.
++	 */
++	int header_size = 16;
+ 
+ 	if ((output_package_size - header_size) !=
+ 		psGET_IN->uint32_size * sizeof(uint32_t)) {
+-- 
+2.39.5 (Apple Git-154)
+
