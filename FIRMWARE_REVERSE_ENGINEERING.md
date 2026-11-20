@@ -230,6 +230,10 @@ Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <pa
 
 | Date | Partition(s) | Image / hash | Result | Notes |
 |---|---|---|---|---|
-| — | — | — | — | no flashes yet |
+| 2026-11-20 | — (unlock) | `fastboot flashing unlock` | OK, `unlocked: yes`, userdata wiped | first write-type action; first boot after wipe ~5 min |
+| 2026-11-20 | boot | `kernel/out/boot-20261118-201249.img` sha256 786f5e84591bb58d… | **FAIL: boot loop** (LK orange screen → reset, no USB, no ADB); early-crash log lost (exited via recovery, which overwrote pstore) | first custom kernel; `fastboot boot` proved non-functional on this LK (RAM image ignored, reboots to flash). Rollback: `fastboot flash boot device/m2/partitions/boot.bin` |
+| 2026-11-20 | boot | `device/m2/partitions/boot.bin` (backup, sha256 verified) | OK, stock kernel boots | rollback via fastboot (loop → Volume Up boot menu → recovery → "Reboot to bootloader") |
 
 
+
+claude --resume fab0cf85-c2f0-4b7c-a06d-7579cda6123f 
