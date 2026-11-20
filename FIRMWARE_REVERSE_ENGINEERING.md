@@ -80,7 +80,7 @@ Ghidra working setup (2026-11-18): official 12.2 ships **no macOS natives** — 
 
 Workflow: copy `_analysis/system_raw.img` → edit with `debugfs` (or loop-mount in Docker/Linux VM) → flash `system` only, one change-set per flash.
 
-- [ ] Remove from `/system/priv-app` + `/system/app`: `SystemLock`, `EngineerMode`, `ValidationTools`, `AutoDialer`, `ATMWifiMeta`, `Baidu_Location`, `LPPeService` (+ `NlpService`/`MtkNlp` if location unused)
+- [x] Remove from `/system/priv-app` + `/system/app`: `SystemLock`, `EngineerMode`, `ValidationTools`, `AutoDialer`, `ATMWifiMeta`, `Baidu_Location`, `LPPeService`, `NlpService`, `MtkNlp` (+ `sdupdate`) — done 2026-11-20 (`system-m4.img`)
 - [ ] Verify `MusicBspPlus` + `MtkLauncher3` unaffected; device boots; USB-MTP works
 - [ ] build.prop: honest fingerprint/model fields (keep a `ro.build.fingerprint` that matches actual Android 9 / MECHEN H1-Pro identity)
 - [ ] Decide GMS (open question below) and act accordingly
@@ -249,6 +249,7 @@ Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <pa
 | 2026-11-20 | boot | `boot-20261120-173426-p21.img` sha256 048f6566… | OK, colors user-verified (superseded by p23-stable). "ioctl not supported" 51→0, PQ service errors 0, CV 4.2 V | + patch 0021: stock-layout PQ ioctls (SET_PQINDEX 10024 B, SET_COLOR_REG 556 B; prefix-verified by BUILD_BUG_ON). SD stays SDR50 (SDR104 parity deferred: autok tuning differs, needs root/instrumented builds) |
 | 2026-11-20 | boot | `boot-20261120-180641-p22-stable.img` | boots; 6 modules, audio, Wi-Fi OK | test build: stable 120–140 auto-merge + ABI guards (before hand-resolved conflicts) |
 | 2026-11-20 | boot | `boot-20261120-183021-p23-stable.img` sha256 fc35f118… | **OK — current boot image, user-verified 2026-11-20:** Spotify speaker + headphones, FM, BT headphones, Wi-Fi, sleep/wake, SD. 0 oops, 0 WARNING (p21: 4), 0 ioctl-not-supported, CV 4.2 V | **M9 step 1 done**: linux-3.18.y v3.18.120→140 (1,393 clean + 8 hand-resolved; 26 already in MTK tree; 9 not built; 4 skipped as irrelevant), ABI-preserving adaptations, reported version stays 3.18.119 (vermagic) |
+| 2026-11-20 | **system** | `kernel/out/system/system-m4.img` sha256 f451020d… (this device's backup minus 10 ODM apps, e2fsck clean; `kernel/tools/firmware/system-debloat.py`) | **OK — current system image.** Boots; 0 of 10 app dirs/packages remain; audio, Wi-Fi, 6 vendor modules up; no crashes | **M4 done**: SystemLock kill-switch, factory/engineering tools, sdupdate, network-location stack removed permanently (flashed by user). Rollback: `fastboot flash system device/m2/partitions/system.bin` |
 
 
 
