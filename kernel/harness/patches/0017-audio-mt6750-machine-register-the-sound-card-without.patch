@@ -1,0 +1,44 @@
+From 80d158807291e237abb11a89fc136bb5b96c408c Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 16:06:55 +0000
+Subject: [PATCH] audio mt6750 machine: register the sound card without BT-CVSD
+ link when its DT node is absent (no sound card at all otherwise)
+
+---
+ sound/soc/mediatek/mt6750/mt_soc_machine.c | 18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/mediatek/mt6750/mt_soc_machine.c b/sound/soc/mediatek/mt6750/mt_soc_machine.c
+index 8bad2141..c48c57d4 100644
+--- a/sound/soc/mediatek/mt6750/mt_soc_machine.c
++++ b/sound/soc/mediatek/mt6750/mt_soc_machine.c
+@@ -1568,14 +1568,20 @@ static int __init mt_soc_snd_init(void)
+ 	/* assign btcvsd platform_node */
+ 	btcvsd_node = of_find_compatible_node(NULL, NULL,
+ 					      "mediatek,mtk-btcvsd-snd");
++	/*
++	 * mp3-harness: the MECHEN H1-Pro DT describes the older BT-CVSD design
++	 * ("mediatek,audio_bt_cvsd" + mt_soc_btcvsd_{rx,tx}_pcm), not "mediatek,mtk-btcvsd-snd".
++	 * Returning -EINVAL here meant no sound card at all. Register the card without the
++	 * BT-CVSD (SCO voice) link instead; music/speaker/headset/A2DP don't use it.
++	 */
+ 	if (!btcvsd_node) {
+-		pr_err("Property 'btcvsd_snd' missing or invalid\n");
+-		return -EINVAL;
++		pr_warn("mt_soc_snd_init: no 'mediatek,mtk-btcvsd-snd' node, card without BT-CVSD link\n");
++	} else {
++		mt_soc_btcvsd_dai[0].platform_of_node = btcvsd_node;
++		memcpy(mt_soc_dai_component + daiLinkNum,
++		       mt_soc_btcvsd_dai, sizeof(mt_soc_btcvsd_dai));
++		daiLinkNum += ARRAY_SIZE(mt_soc_btcvsd_dai);
+ 	}
+-	mt_soc_btcvsd_dai[0].platform_of_node = btcvsd_node;
+-	memcpy(mt_soc_dai_component + daiLinkNum,
+-	       mt_soc_btcvsd_dai, sizeof(mt_soc_btcvsd_dai));
+-	daiLinkNum += ARRAY_SIZE(mt_soc_btcvsd_dai);
+ 
+ 	snd_soc_card_mt.dai_link = mt_soc_dai_component;
+ 	snd_soc_card_mt.num_links = daiLinkNum;
+-- 
+2.39.5 (Apple Git-154)
+
