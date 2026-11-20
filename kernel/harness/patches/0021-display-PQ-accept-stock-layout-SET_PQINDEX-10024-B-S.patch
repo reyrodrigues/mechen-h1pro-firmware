@@ -1,0 +1,130 @@
+From 5934e9ee7fcb912a31630b6159193265b74a5c50 Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 17:34:23 +0000
+Subject: [PATCH] display PQ: accept stock-layout SET_PQINDEX (10024 B) /
+ SET_COLOR_REG (556 B) from the vendor PQ service (prefix copy, extensions
+ zeroed)
+
+---
+ .../mediatek/video/common/color20/ddp_color.c | 38 +++++++++++++++++++
+ drivers/misc/mediatek/video/mt6755/ddp_drv.h  | 11 ++++++
+ .../misc/mediatek/video/mt6755/ddp_manager.c  |  2 +
+ .../misc/mediatek/video/mt6755/mtk_disp_mgr.c |  4 ++
+ 4 files changed, 55 insertions(+)
+
+diff --git a/drivers/misc/mediatek/video/common/color20/ddp_color.c b/drivers/misc/mediatek/video/common/color20/ddp_color.c
+index 896e9daa..84583103 100644
+--- a/drivers/misc/mediatek/video/common/color20/ddp_color.c
++++ b/drivers/misc/mediatek/video/common/color20/ddp_color.c
+@@ -13,6 +13,7 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/types.h>
++#include <linux/slab.h>
+ #include <linux/spinlock.h>
+ #include <linux/of.h>
+ #include <linux/of_address.h>
+@@ -2408,6 +2409,43 @@ static int _color_io(DISP_MODULE_ENUM module, int msg, unsigned long arg, void *
+ 
+ 		break;
+ 
++#ifdef DISP_IOCTL_SET_COLOR_REG_STOCK
++	case DISP_IOCTL_SET_PQINDEX_STOCK:
++		/* mp3-harness: stock-layout PQ index (prefix of DISPLAY_PQ_T, extensions zeroed) */
++		BUILD_BUG_ON(offsetof(DISPLAY_PQ_T, S_GAIN_BY_Y) != DISP_PQ_T_STOCK_SIZE);
++		pq_index = get_Color_index();
++		{
++			DISPLAY_PQ_T *tmp = kzalloc(sizeof(DISPLAY_PQ_T), GFP_KERNEL);
++
++			if (!tmp)
++				return -ENOMEM;
++			if (copy_from_user(tmp, (void *)arg, DISP_PQ_T_STOCK_SIZE)) {
++				kfree(tmp);
++				COLOR_ERR("DISP_IOCTL_SET_PQINDEX_STOCK Copy from user failed\n");
++				return -EFAULT;
++			}
++			memcpy(pq_index, tmp, sizeof(DISPLAY_PQ_T));
++			kfree(tmp);
++		}
++		break;
++
++	case DISP_IOCTL_SET_COLOR_REG_STOCK:
++		/* mp3-harness: stock-layout color regs (prefix of DISPLAY_COLOR_REG_T, extensions zeroed) */
++		BUILD_BUG_ON(offsetof(DISPLAY_COLOR_REG_T, S_GAIN_BY_Y) != DISP_COLOR_REG_T_STOCK_SIZE);
++		mutex_lock(&g_color_reg_lock);
++		memset(&g_color_reg, 0, sizeof(g_color_reg));
++		if (copy_from_user(&g_color_reg, (void *)arg, DISP_COLOR_REG_T_STOCK_SIZE)) {
++			mutex_unlock(&g_color_reg_lock);
++			COLOR_ERR("DISP_IOCTL_SET_COLOR_REG_STOCK Copy from user failed\n");
++			return -EFAULT;
++		}
++		color_write_hw_reg(DISP_MODULE_COLOR0, &g_color_reg, cmdq);
++		g_color_reg_valid = 1;
++		mutex_unlock(&g_color_reg_lock);
++		color_trigger_refresh(DISP_MODULE_COLOR0);
++		break;
++#endif
++
+ 	case DISP_IOCTL_SET_COLOR_REG:
+ 		COLOR_DBG("DISP_IOCTL_SET_COLOR_REG\n");
+ 
+diff --git a/drivers/misc/mediatek/video/mt6755/ddp_drv.h b/drivers/misc/mediatek/video/mt6755/ddp_drv.h
+index 13c81290..9afba6c4 100644
+--- a/drivers/misc/mediatek/video/mt6755/ddp_drv.h
++++ b/drivers/misc/mediatek/video/mt6755/ddp_drv.h
+@@ -150,6 +150,17 @@ struct device *disp_get_device(void);
+ #define DISP_IOCTL_WRITE_SW_REG	 _IOW(DISP_IOCTL_MAGIC, 77, DISP_WRITE_REG)	/* also defined in atci_pq_cmd.h */
+ #define DISP_IOCTL_READ_SW_REG	  _IOWR(DISP_IOCTL_MAGIC, 78, DISP_READ_REG)	/* also defined in atci_pq_cmd.h */
+ #define DISP_IOCTL_SET_COLOR_REG    _IOWR(DISP_IOCTL_MAGIC, 79, DISPLAY_COLOR_REG_T)
++/*
++ * mp3-harness: the MECHEN H1-Pro vendor PQ service uses the older (stock) layouts of
++ * DISPLAY_PQ_T (10024 bytes) and DISPLAY_COLOR_REG_T (556 bytes). This tree's structs are
++ * byte-identical prefixes extended with S_GAIN_BY_Y/LSP/COLOR_3D; ddp_color.c accepts the
++ * stock-sized commands, copies the prefix and zeroes (= disables) the extensions.
++ */
++#define DISP_PQ_T_STOCK_SIZE		10024
++#define DISP_COLOR_REG_T_STOCK_SIZE	556
++#define DISP_IOCTL_SET_PQINDEX_STOCK	_IOC(_IOC_WRITE, DISP_IOCTL_MAGIC, 64, DISP_PQ_T_STOCK_SIZE)
++#define DISP_IOCTL_SET_COLOR_REG_STOCK	_IOC(_IOC_READ | _IOC_WRITE, DISP_IOCTL_MAGIC, 79, \
++					     DISP_COLOR_REG_T_STOCK_SIZE)
+ 
+ /* OD */
+ #define DISP_IOCTL_OD_CTL		   _IOWR(DISP_IOCTL_MAGIC, 80 , DISP_OD_CMD)
+diff --git a/drivers/misc/mediatek/video/mt6755/ddp_manager.c b/drivers/misc/mediatek/video/mt6755/ddp_manager.c
+index 5e96c5bc..bdaf2226 100644
+--- a/drivers/misc/mediatek/video/mt6755/ddp_manager.c
++++ b/drivers/misc/mediatek/video/mt6755/ddp_manager.c
+@@ -1483,6 +1483,8 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg,
+ 	case DISP_IOCTL_SET_PQINDEX:
+ 	case DISP_IOCTL_GET_PQINDEX:
+ 	case DISP_IOCTL_SET_COLOR_REG:
++	case DISP_IOCTL_SET_PQINDEX_STOCK:
++	case DISP_IOCTL_SET_COLOR_REG_STOCK:
+ 	case DISP_IOCTL_SET_TDSHPINDEX:
+ 	case DISP_IOCTL_GET_TDSHPINDEX:
+ 	case DISP_IOCTL_SET_PQ_CAM_PARAM:
+diff --git a/drivers/misc/mediatek/video/mt6755/mtk_disp_mgr.c b/drivers/misc/mediatek/video/mt6755/mtk_disp_mgr.c
+index c04e1d13..daa8484e 100644
+--- a/drivers/misc/mediatek/video/mt6755/mtk_disp_mgr.c
++++ b/drivers/misc/mediatek/video/mt6755/mtk_disp_mgr.c
+@@ -1634,6 +1634,8 @@ long mtk_disp_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+ 	case DISP_IOCTL_SET_PQINDEX:
+ 	case DISP_IOCTL_GET_PQINDEX:
+ 	case DISP_IOCTL_SET_COLOR_REG:
++	case DISP_IOCTL_SET_PQINDEX_STOCK:
++	case DISP_IOCTL_SET_COLOR_REG_STOCK:
+ 	case DISP_IOCTL_SET_TDSHPINDEX:
+ 	case DISP_IOCTL_GET_TDSHPINDEX:
+ 	case DISP_IOCTL_SET_PQ_CAM_PARAM:
+@@ -1804,6 +1806,8 @@ static long mtk_disp_mgr_compat_ioctl(struct file *file, unsigned int cmd,  unsi
+ 	case DISP_IOCTL_SET_PQINDEX:
+ 	case DISP_IOCTL_GET_PQINDEX:
+ 	case DISP_IOCTL_SET_COLOR_REG:
++	case DISP_IOCTL_SET_PQINDEX_STOCK:
++	case DISP_IOCTL_SET_COLOR_REG_STOCK:
+ 	case DISP_IOCTL_SET_TDSHPINDEX:
+ 	case DISP_IOCTL_GET_TDSHPINDEX:
+ 	case DISP_IOCTL_SET_PQ_CAM_PARAM:
+-- 
+2.39.5 (Apple Git-154)
+
