@@ -236,6 +236,8 @@ Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <pa
 | 2026-11-20 | boot | `boot-20261118-201249.img` (attempt 2) → restored `boot.bin` | loop again; **log captured**: ~8.6 s then storm of `[SPM] IRQ1 HANDLER SHOULD NOT BE EXECUTED` → WDT | exit via Volume Up → Fastboot keeps pstore |
 | 2026-11-20 | boot | `boot-20261120-142500-DIAG-spm.img` sha256 7cd693ca… | loop; log: no SPM storm, but M4U IRQ storm (sta=0) at 3.1 s → **root cause: INT_POL polarity writes dropped** (tree writes directly / SiP 0x287; stock uses ATF SiP 0x82000201) | DIAG: SPM aux IRQ rate-limited + disabled after 50 hits |
 | 2026-11-20 | boot | `boot-20261120-143334-polfix-DIAG.img` sha256 d859b55a… | loop; **no IRQ storms** (polarity fix confirmed); clean panic at 2.94 s: NULL deref in `pinctrl_select_state` from `mtk_mt6331_codec_dev_probe` (tree's FIH ext-amp pinctrl24, absent on this board) | patch 0014 polarity fix + DIAG |
+| 2026-11-20 | boot | `boot-20261120-144418-p15-DIAG.img` sha256 82dead50… | **KERNEL BOOTS** (stable, 5+ min, all 6 vendor modules loaded, touch probed, exFAT); Android stuck: vendor hwcomposer aborts on `DISP_IOCTL_GET_DISPLAY_CAPS` (display uapi struct sizes differ from stock) | patches 0001–0015 + DIAG |
+| 2026-11-20 | boot | `boot-20261120-145641-p16.img` sha256 515e48c5… | (pending) | release build 0001–0016: stock-matching `disp_session.h` (Vgdn1942 revision, sizes verified = stock) |
 
 
 
