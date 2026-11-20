@@ -1,0 +1,36 @@
+From fa130d14058b2dc85647657219d9b26c131ba92a Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 16:33:07 +0000
+Subject: [PATCH] msdc1 (SD slot): cap at SDR50/100 MHz; SDR104 data transfers
+ time out on this board
+
+---
+ drivers/mmc/host/mediatek/mt6755/msdc_io.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/mmc/host/mediatek/mt6755/msdc_io.c b/drivers/mmc/host/mediatek/mt6755/msdc_io.c
+index 66102095..06ac3063 100644
+--- a/drivers/mmc/host/mediatek/mt6755/msdc_io.c
++++ b/drivers/mmc/host/mediatek/mt6755/msdc_io.c
+@@ -1258,6 +1258,18 @@ int msdc_of_parse(struct mmc_host *mmc)
+ 
+ 	np = mmc->parent->of_node; /* mmcx node in projectdts */
+ 
++	/*
++	 * mp3-harness: on the MECHEN H1-Pro (MT6750) the SD slot (msdc1 @ 0x11240000) initialises in
++	 * UHS SDR104 @ 200 MHz under this tree but then times out on data transfers (CMD18 DATTMO,
++	 * CMD13 CMDTMO -> card dropped). Cap the SD slot at SDR50 (100 MHz); eMMC is unaffected.
++	 */
++	if (np && np->name && !strcmp(np->name, "msdc1") && (mmc->caps & MMC_CAP_UHS_SDR104)) {
++		mmc->caps &= ~MMC_CAP_UHS_SDR104;
++		if (mmc->f_max > 100000000)
++			mmc->f_max = 100000000;
++		pr_warn("[msdc1] mp3-harness: SDR104 disabled, SD capped at SDR50/100MHz\n");
++	}
++
+ 	host->mmc = mmc;  /* msdc_check_init_done() need */
+ 	host->hw = kzalloc(sizeof(struct msdc_hw), GFP_KERNEL);
+ 
+-- 
+2.39.5 (Apple Git-154)
+
