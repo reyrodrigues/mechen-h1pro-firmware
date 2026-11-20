@@ -88,6 +88,10 @@ Workflow: copy `_analysis/system_raw.img` → edit with `debugfs` (or loop-mount
 - [ ] Test matrix pass: boot, music playback (speaker + headset + BT), hardware keys, SD card, USB-MTP from macOS, charge UI, battery life sanity
 - [ ] Rollback proof-test: reflash stock system once, confirm, re-apply v1
 
+### M4 interim mitigation (2026-11-20, done)
+
+`pm disable-user --user 0` (adb, reversible with `pm enable`) for: `com.android.systemlock` (**kill-switch**), `com.teksun.factorytest`, `com.mediatek.engineermode`, `com.example` (AutoDialer), `com.example.call` (sdupdate: MASTER_CLEAR/RECOVERY), `com.mediatek.atmwifimeta`, `com.baidu.map.location`, `com.mediatek.location.lppe.main`, `com.mediatek.nlpservice`, `com.mediatek.location.mtknlp`. Verified after reboot: 10/10 disabled, none running, no traffic to 47.120.15.138. State lives in /data → **a factory reset re-enables them**; permanent removal from `system` (below) still required.
+
 ## M5 — Custom firmware v2: bespoke launcher
 
 - [ ] Scaffold the launcher app (Kotlin, min/targetSdk 28, no GMS dependencies): HOME + DEFAULT intent filters, 4-inch/240dpi-first UI (large targets, dark theme, one-thumb reachability)
