@@ -1,0 +1,328 @@
+diff --git a/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c b/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
+index 535f5ddf6..d313b363a 100644
+--- a/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
++++ b/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
+@@ -201,7 +201,7 @@ static s32 mdp_process_read_request(struct mdp_read_readback *req_user)
+ 		}
+ 
+ 		addrs = kcalloc(count, sizeof(u32), GFP_KERNEL);
+-		if (!ids) {
++		if (!addrs) {	/* mp3-harness: was !ids (ALPS05836642) */
+ 			CMDQ_ERR("[READ_PA] fail to alloc addr buf\n");
+ 			status = -ENOMEM;
+ 			break;
+@@ -293,6 +293,10 @@ static unsigned long translate_fd(struct op_meta *meta,
+ 	} else {
+ 		mva = mapping_job->mvas[i];
+ 	}
++	/* mp3-harness: MTK ALPS05836585 / CVE-2022-20067 (unchecked user offset) */
++	if (meta->fd_offset >= U32_MAX)
++		return 0;
++
+ 	mva += meta->fd_offset;
+ 
+ 	return mva;
+diff --git a/drivers/staging/android/ion/compat_ion.c b/drivers/staging/android/ion/compat_ion.c
+index ceb012ff8..1e8f8ff92 100644
+--- a/drivers/staging/android/ion/compat_ion.c
++++ b/drivers/staging/android/ion/compat_ion.c
+@@ -164,10 +164,10 @@ static int compat_get_ion_allocation_data(
+ 			struct compat_ion_allocation_data __user *data32,
+ 			struct ion_allocation_data __user *data)
+ {
+-	compat_size_t s;
+-	compat_uint_t u;
+-	compat_int_t i;
+-	int err;
++	compat_size_t s = 0;
++	compat_uint_t u = 0;
++	compat_int_t i = 0;
++	int err = 0;
+ 
+ 	err = get_user(s, &data32->len);
+ 	err |= put_user(s, &data->len);
+@@ -187,8 +187,8 @@ static int compat_get_ion_handle_data(
+ 			struct compat_ion_handle_data __user *data32,
+ 			struct ion_handle_data __user *data)
+ {
+-	compat_int_t i;
+-	int err;
++	compat_int_t i = 0;
++	int err = 0;
+ 
+ 	err = get_user(i, &data32->handle);
+ 	err |= put_user(i, &data->handle);
+@@ -200,10 +200,10 @@ static int compat_put_ion_allocation_data(
+ 			struct compat_ion_allocation_data __user *data32,
+ 			struct ion_allocation_data __user *data)
+ {
+-	compat_size_t s;
+-	compat_uint_t u;
+-	compat_int_t i;
+-	int err;
++	compat_size_t s = 0;
++	compat_uint_t u = 0;
++	compat_int_t i = 0;
++	int err = 0;
+ 
+ 	err = get_user(s, &data->len);
+ 	err |= put_user(s, &data32->len);
+@@ -223,12 +223,12 @@ static int compat_get_ion_mm_config_buffer_param(
+ 			struct compat_ion_mm_config_buffer_param __user *data32,
+ 			struct ion_mm_config_buffer_param __user *data)
+ {
+-	compat_ulong_t handle;
++	compat_ulong_t handle = 0;
+ 	compat_uint_t eModuleID;
+-	compat_uint_t security;
+-	compat_uint_t coherent;
++	compat_uint_t security = 0;
++	compat_uint_t coherent = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(handle, &data32->handle);
+ 	err |= put_user(handle, &data->handle);
+@@ -246,12 +246,12 @@ static int compat_get_ion_mm_buf_debug_info_set(
+ 			struct compat_ion_mm_buf_debug_info __user *data32,
+ 			struct __ion_mm_buf_debug_info __user *data)
+ {
+-	compat_ulong_t handle;
++	compat_ulong_t handle = 0;
+ 	char dbg_name;
+-	compat_uint_t value1;
+-	compat_uint_t value2;
+-	compat_uint_t value3;
+-	compat_uint_t value4;
++	compat_uint_t value1 = 0;
++	compat_uint_t value2 = 0;
++	compat_uint_t value3 = 0;
++	compat_uint_t value4 = 0;
+ 
+ 	int i, err;
+ 
+@@ -277,9 +277,9 @@ static int compat_get_ion_mm_buf_debug_info(
+ 			struct compat_ion_mm_buf_debug_info __user *data32,
+ 			struct __ion_mm_buf_debug_info __user *data)
+ {
+-	compat_ulong_t handle;
++	compat_ulong_t handle = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(handle, &data32->handle);
+ 	err |= put_user(handle, &data->handle);
+@@ -291,12 +291,12 @@ static int compat_put_ion_mm_buf_debug_info(
+ 			struct compat_ion_mm_buf_debug_info __user *data32,
+ 			struct __ion_mm_buf_debug_info __user *data)
+ {
+-	compat_ulong_t handle;
++	compat_ulong_t handle = 0;
+ 	char dbg_name;
+-	compat_uint_t value1;
+-	compat_uint_t value2;
+-	compat_uint_t value3;
+-	compat_uint_t value4;
++	compat_uint_t value1 = 0;
++	compat_uint_t value2 = 0;
++	compat_uint_t value3 = 0;
++	compat_uint_t value4 = 0;
+ 
+ 	int i, err = 0;
+ 
+@@ -321,9 +321,9 @@ static int compat_put_ion_mm_buf_debug_info(
+ 
+ static int compat_get_ion_mm_data(struct compat_ion_mm_data *data32, struct ion_mm_data *data)
+ {
+-	compat_uint_t mm_cmd;
++	compat_uint_t mm_cmd = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(mm_cmd, &data32->mm_cmd);
+ 	err |= put_user(mm_cmd, &data->mm_cmd);
+@@ -351,7 +351,7 @@ static int compat_get_ion_mm_data(struct compat_ion_mm_data *data32, struct ion_
+ 
+ static int compat_put_ion_mm_data(struct compat_ion_mm_data *data32, struct ion_mm_data *data)
+ {
+-	compat_uint_t mm_cmd;
++	compat_uint_t mm_cmd = 0;
+ 
+ 	int err = 0;
+ 
+@@ -375,12 +375,12 @@ static int compat_get_ion_sys_cache_sync_param(
+ 			struct compat_ion_sys_cache_sync_param __user *data32,
+ 			struct ion_sys_cache_sync_param __user *data)
+ {
+-	compat_int_t handle;
+-	compat_uptr_t va;
+-	compat_size_t size;
+-	compat_uint_t sync_type;
++	compat_int_t handle = 0;
++	compat_uptr_t va = 0;
++	compat_size_t size = 0;
++	compat_uint_t sync_type = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(handle, &data32->handle);
+ 	err |= put_user(handle, &data->handle);
+@@ -397,11 +397,11 @@ static int compat_get_ion_sys_get_phys_param(
+ 			struct compat_ion_sys_get_phys_param __user *data32,
+ 			struct ion_sys_get_phys_param __user *data)
+ {
+-	compat_int_t handle;
+-	compat_uint_t phy_addr;
+-	compat_size_t len;
++	compat_int_t handle = 0;
++	compat_uint_t phy_addr = 0;
++	compat_size_t len = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(handle, &data32->handle);
+ 	err |= put_user(handle, &data->handle);
+@@ -417,9 +417,9 @@ static int compat_put_ion_sys_get_phys_param(
+ 			struct compat_ion_sys_get_phys_param __user *data32,
+ 			struct ion_sys_get_phys_param __user *data)
+ {
+-	compat_int_t handle;
+-	compat_uint_t phy_addr;
+-	compat_size_t len;
++	compat_int_t handle = 0;
++	compat_uint_t phy_addr = 0;
++	compat_size_t len = 0;
+ 
+ 	int err = 0;
+ 
+@@ -453,9 +453,9 @@ static int compat_get_ion_sys_data(
+ 			struct compat_ion_sys_data __user *data32,
+ 			struct ion_sys_data __user *data)
+ {
+-	compat_uint_t sys_cmd;
++	compat_uint_t sys_cmd = 0;
+ 
+-	int err;
++	int err = 0;
+ 
+ 	err = get_user(sys_cmd, &data32->sys_cmd);
+ 	err |= put_user(sys_cmd, &data->sys_cmd);
+@@ -485,7 +485,7 @@ static int compat_put_ion_sys_data(
+ 			struct compat_ion_sys_data __user *data32,
+ 			struct ion_sys_data __user *data)
+ {
+-	compat_uint_t sys_cmd;
++	compat_uint_t sys_cmd = 0;
+ 
+ 	int err = 0;
+ 
+@@ -509,9 +509,9 @@ static int compat_get_ion_custom_data(
+ 			struct compat_ion_custom_data __user *data32,
+ 			struct ion_custom_data __user *data)
+ {
+-	compat_uint_t cmd;
+-	compat_ulong_t arg;
+-	int err;
++	compat_uint_t cmd = 0;
++	compat_ulong_t arg = 0;
++	int err = 0;
+ 
+ 	err = get_user(cmd, &data32->cmd);
+ 	err |= put_user(cmd, &data->cmd);
+@@ -558,8 +558,8 @@ static int compat_put_ion_custom_data(
+ 			struct compat_ion_custom_data __user *data32,
+ 		    struct ion_custom_data __user *data)
+ {
+-	compat_uint_t cmd;
+-	compat_ulong_t arg;
++	compat_uint_t cmd = 0;
++	compat_ulong_t arg = 0;
+ 	int err = 0;
+ 
+ 	err = get_user(cmd, &data->cmd);
+diff --git a/drivers/staging/android/ion/ion.c b/drivers/staging/android/ion/ion.c
+index 9d9853172..f9d91bb49 100644
+--- a/drivers/staging/android/ion/ion.c
++++ b/drivers/staging/android/ion/ion.c
+@@ -676,6 +676,12 @@ static void *ion_buffer_kmap_get(struct ion_buffer *buffer)
+ {
+ 	void *vaddr;
+ 
++	/* mp3-harness: MTK ALPS06371108 / CVE-2022-21743 (kmap_cnt overflow -> UAF) */
++	if (buffer->kmap_cnt + 1 == 0) {
++		IONMSG("%s overflow\n", __func__);
++		return ERR_PTR(-EOVERFLOW);
++	}
++
+ 	if (buffer->kmap_cnt) {
+ 		buffer->kmap_cnt++;
+ 		return buffer->vaddr;
+@@ -698,6 +704,12 @@ static void *ion_handle_kmap_get(struct ion_handle *handle)
+ 	struct ion_buffer *buffer = handle->buffer;
+ 	void *vaddr;
+ 
++	/* mp3-harness: MTK ALPS06371108 / CVE-2022-21743 */
++	if (handle->kmap_cnt + 1 == 0) {
++		IONMSG("%s overflow\n", __func__);
++		return ERR_PTR(-EOVERFLOW);
++	}
++
+ 	if (handle->kmap_cnt) {
+ 		handle->kmap_cnt++;
+ 		return buffer->vaddr;
+@@ -737,6 +749,7 @@ static void ion_handle_kmap_put(struct ion_handle *handle)
+ 
+ void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
+ {
++	struct ion_handle *handle_ret;
+ 	struct ion_buffer *buffer;
+ 	void *vaddr;
+ 
+@@ -757,9 +770,18 @@ void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
+ 		return ERR_PTR(-ENODEV);
+ 	}
+ 
++	/* mp3-harness: MTK ALPS06371108 / CVE-2022-21743: keep the handle alive while kernel-mapped */
++	handle_ret = ion_handle_get_check_overflow(handle);
++	if (IS_ERR(handle_ret)) {
++		mutex_unlock(&client->lock);
++		WARN(1, "%s: handle get fail %ld.\n", __func__, PTR_ERR(handle_ret));
++		return handle_ret;
++	}
+ 	mutex_lock(&buffer->lock);
+ 	vaddr = ion_handle_kmap_get(handle);
+ 	mutex_unlock(&buffer->lock);
++	if (IS_ERR(vaddr))
++		ion_handle_put_nolock(handle);	/* no mapping -> drop the reference (upstream leaks it) */
+ 	mutex_unlock(&client->lock);
+ 	return vaddr;
+ }
+@@ -774,6 +796,8 @@ void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle)
+ 	mutex_lock(&buffer->lock);
+ 	ion_handle_kmap_put(handle);
+ 	mutex_unlock(&buffer->lock);
++
++	ion_handle_put_nolock(handle);	/* mp3-harness: pairs with ion_map_kernel() reference */
+ 	mutex_unlock(&client->lock);
+ }
+ EXPORT_SYMBOL(ion_unmap_kernel);
+@@ -1114,8 +1138,13 @@ static int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+ 	int ret;
+ 
+ 	mutex_lock(&buffer->lock);
++	/* mp3-harness: MTK ALPS06371108: fail the fault instead of BUG_ON, and never return with the lock held */
++	if (!buffer->pages || !buffer->pages[vmf->pgoff]) {
++		mutex_unlock(&buffer->lock);
++		WARN_ON(1);
++		return VM_FAULT_ERROR;
++	}
+ 	ion_buffer_page_dirty(buffer->pages + vmf->pgoff);
+-	BUG_ON(!buffer->pages || !buffer->pages[vmf->pgoff]);
+ 
+ 	pfn = page_to_pfn(ion_buffer_page(buffer->pages[vmf->pgoff]));
+ 	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
