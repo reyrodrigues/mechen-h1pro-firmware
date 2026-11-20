@@ -1,3 +1,10 @@
 # Local overrides appended to the stock config (last value wins in olddefconfig).
 # Camera: stock lists the reference-board sensors; only ov5648 exists in the tree.
 CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov5648_mipi_raw"
+
+# M9 step 5: config hardening (2026-11-20).
+# NOT CONFIG_ARM64_SW_TTBR0_PAN: it inserts thread_info.ttbr0 before preempt_count, which the prebuilt
+# vendor modules access inline (preempt_disable/enable) -> modversions mismatch, real ABI break.
+CONFIG_SECURITY_DMESG_RESTRICT=y
+CONFIG_SECURITY_SELINUX_CHECKREQPROT_VALUE=0
+# CONFIG_LEGACY_PTYS is not set

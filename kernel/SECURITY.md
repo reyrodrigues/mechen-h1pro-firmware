@@ -12,7 +12,7 @@ Rule: every series must keep `out/modversions.txt` all OK (vendor Wi-Fi/BT/FM/GP
 | 2 | AOSP `kernel/common` `deprecated/android-3.18` (to 2021-01, fixes not in 3.18.140) | `patches-stable/1001-…` | **done 2026-11-20** (p24-aosp): 49 Android-tagged commits since 2018-08 → 5 applied, 2 hand-applied, 9 already present, 1 reverted, 3 skipped, 29 not built; see `AOSP-LOG.txt`, `AOSP-TRIAGE.txt` |
 | 3 | Android Security Bulletins 2019-06 → present, kernel CVEs | | not started |
 | 4 | MediaTek product security bulletins (MT6750/MT6755) | | not started |
-| 5 | Config hardening | `config.fragment` | not started |
+| 5 | Config hardening | `config.fragment` | **done 2026-11-20** (p25-hardened): DMESG_RESTRICT=y, SELINUX_CHECKREQPROT_VALUE=0, LEGACY_PTYS=n. Already on in stock config: no DEVMEM/DEVKMEM/PROC_KCORE/HIBERNATION/BINFMT_MISC/USELIB/BPF_JIT, STACKPROTECTOR_STRONG, DEBUG_RODATA, HARDENED_USERCOPY, UNMAP_KERNEL_AT_EL0, SECCOMP_FILTER, PERF_EVENTS_RESTRICT. **Not possible**: ARM64_SW_TTBR0_PAN (inserts thread_info.ttbr0 before preempt_count, which prebuilt vendor modules use inline → ABI break); SELinux enforcing (ODM policy incomplete: ~180 denials/boot incl. zygote, system_server, surfaceflinger, audio HAL → separate sepolicy project) |
 
 ## CVE log
 
