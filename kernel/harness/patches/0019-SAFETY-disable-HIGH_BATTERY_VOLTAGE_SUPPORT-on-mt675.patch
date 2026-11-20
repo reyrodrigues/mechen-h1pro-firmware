@@ -1,0 +1,33 @@
+From fa2d072e720687a9880b37028f19222d0e4c556d Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 16:54:57 +0000
+Subject: [PATCH] SAFETY: disable HIGH_BATTERY_VOLTAGE_SUPPORT on mt6755 (4.2 V
+ cell; was charging to 4.35 V)
+
+---
+ .../include/mt-plat/mt6755/include/mach/mt_charging.h    | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/misc/mediatek/include/mt-plat/mt6755/include/mach/mt_charging.h b/drivers/misc/mediatek/include/mt-plat/mt6755/include/mach/mt_charging.h
+index ab2f6c29..18c57bf4 100644
+--- a/drivers/misc/mediatek/include/mt-plat/mt6755/include/mach/mt_charging.h
++++ b/drivers/misc/mediatek/include/mt-plat/mt6755/include/mach/mt_charging.h
+@@ -91,7 +91,14 @@
+ /* #define BATTERY_NOTIFY_CASE_0005_TOTAL_CHARGINGTIME */
+ 
+ /* High battery support */
+-#define HIGH_BATTERY_VOLTAGE_SUPPORT
++/*
++ * mp3-harness: OFF for the MECHEN H1-Pro. Its cell is a 4.2 V Li-ion (battery profile tops out at
++ * 4199 mV, DT bat_meter high_battery_voltage_support = <0>, stock kernel programs CV 4.200 V).
++ * With this defined (inherited from the source phone's 4.35 V cell) our kernel charged to CV 4.35 V
++ * and set the PMIC VBAT over-voltage threshold to 4.4 V. The DT override never applies because
++ * battery_common.c reads the empty "mediatek,battery" node, not "mediatek,bat_meter".
++ */
++/* #define HIGH_BATTERY_VOLTAGE_SUPPORT */
+ 
+ /* JEITA parameter */
+ /*#define MTK_JEITA_STANDARD_SUPPORT*/
+-- 
+2.39.5 (Apple Git-154)
+
