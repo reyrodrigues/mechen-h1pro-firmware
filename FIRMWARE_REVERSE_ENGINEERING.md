@@ -174,9 +174,25 @@ Process per series: branch `sec/<series>` in `src/linux` → export to `harness/
 - Board facts recovered: touch overlay in `odmdtbo` (`tpd-resolution` 800×1280, EINT 1, `vtouch` = VLDO28 2.8 V, I2C node `mediatek,cap_touch@5d`, driver forces 0x5a); panel ID check reads reg 0xA1 == 0x8802; RTC ioctls 36-byte numbers but 40-byte copies (stock quirk preserved); vendor modules: `wmt_drv`, `wlan_drv_gen2`, `bt_drv`, `fmradio_drv`, `gps_drv`, `wmt_chrdev_wifi`.
 - Not ported (non-critical): accelerometers MSA311/mir3da, BT CVSD (SCO voice), ODM battery sysfs, AEE powerkey hooks, S5K3L2 camera.
 
+### 2026-11-20 — device day 1: M1 recon + M2 backup (nothing written to the device)
+
+**Device ≠ package.** The unit runs an older build: `T04_50_2_16_4inch_M404_ST7701S_sh1282G003_MECHEN_V1.0_20250305` (kernel 2025-03-05 `es01@blueshark03`, LK `k50v1_64_bsp-f7015dd0dd-20250305151445`, fingerprint spoofed as `Teclast/M40_Plus_ROW…:12/SP1A…`). Verified it doesn't matter for our kernel: device boot.img header + appended DTB are **identical** to the 2026 package, `odmdtbo` overlay decompiles **identical**, panel/battery tables + touch/keys/exFAT strings are **byte-identical** in the device kernel, and the device's own vendor modules (which differ byte-wise from the package's) **pass `check_modversions.py`** against our build.
+
+M1 (`device/m1/`, git-ignored):
+- 480×800 @ 240 dpi; eMMC is **16 GB** (`Q313MB`; userdata 11.4 GB), partition map otherwise = scatter.
+- **SELinux is Permissive** on the shipping device (security finding: should be enforcing).
+- `ro.boot.flash.locked=1`, `verifiedbootstate=green`, `veritymode=enforcing`; `sys.oem_unlock_allowed=1`; `ro.product.first_api_level=26`.
+- fastboot: `unlocked: no`, `secure: yes`, `oem lks = 1`, `flashing get_unlock_ability = 16777216` (allowed). Baseband `MOLY.LR11.W1630.MD.MP.V217.2`.
+- **BROM: `Target config 0x0`: SBC, SLA, DAA all disabled** → no hardware signature enforcement; device always recoverable via BROM.
+- Developer options: tapping the wrong About line launches the Teksun factory test (don't run it). **BROM key combo = Volume Down** while plugging USB with the device off.
+
+M2 (`device/m2/`, 3.9 GB, `SHA256SUMS`): all 32 GPT partitions except `userdata`, both eMMC boot areas (preloader, `EMMC_BOOT` header, boot1 == boot2), primary + backup GPT. `nvram` and `proinfo` are genuinely all-zero on this unit (two identical reads); calibration is in `nvdata`. system/vendor/cache verified clean ext4, build.prop + all vendor `.ko` match the live device.
+
+Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <package preloader_k50v1_64_bsp.bin>` placed **before** the subcommand (DRAM init; RAM only), (b) a local patch making its FUSE import optional (`mtk_da_handler.py`, catch `OSError`), (c) chunked reads for big partitions: single long reads die with USB pipe errors on macOS → `kernel/tools/firmware/mtk-chunked-read.sh` (32 MiB, resumable).
+
 ## Next session checklist (device day)
 
-1. M0 leftovers: install mtkclient (`pip install git+https://github.com/bkerler/mtkclient`), set up the flash-log convention.
+1. ~~M0 leftovers~~ done 2026-11-20. M0 leftovers: install mtkclient (`pip install git+https://github.com/bkerler/mtkclient`), set up the flash-log convention.
 2. **M1** read-only recon (getprop: `ro.boot.verifiedbootstate`, `ro.boot.flash.locked`, `ro.product.first_api_level`, resolution; `fastboot getvar all`, `fastboot oem lks`, `fastboot flashing get_unlock_ability`); mtkclient target config (SBC/SLA/DAA).
 3. **M2** full backup (mtkclient `rl` all partitions, incl. nvram/nvdata/proinfo); verify + copy offsite.
 4. **M3** unlock (wipes data) → `fastboot boot` the **stock** boot.img repacked by our tool (`./build.sh selftest` output is identical anyway) → then `fastboot boot kernel/out/boot-<stamp>.img`.
@@ -215,3 +231,5 @@ Process per series: branch `sec/<series>` in `src/linux` → export to `harness/
 | Date | Partition(s) | Image / hash | Result | Notes |
 |---|---|---|---|---|
 | — | — | — | — | no flashes yet |
+
+
