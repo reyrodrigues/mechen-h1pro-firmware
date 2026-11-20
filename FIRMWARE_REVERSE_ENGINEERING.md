@@ -238,7 +238,7 @@ Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <pa
 | 2026-11-20 | boot | `boot-20261120-143334-polfix-DIAG.img` sha256 d859b55a… | loop; **no IRQ storms** (polarity fix confirmed); clean panic at 2.94 s: NULL deref in `pinctrl_select_state` from `mtk_mt6331_codec_dev_probe` (tree's FIH ext-amp pinctrl24, absent on this board) | patch 0014 polarity fix + DIAG |
 | 2026-11-20 | boot | `boot-20261120-144418-p15-DIAG.img` sha256 82dead50… | **KERNEL BOOTS** (stable, 5+ min, all 6 vendor modules loaded, touch probed, exFAT); Android stuck: vendor hwcomposer aborts on `DISP_IOCTL_GET_DISPLAY_CAPS` (display uapi struct sizes differ from stock) | patches 0001–0015 + DIAG |
 | 2026-11-20 | boot | `boot-20261120-145641-p16.img` sha256 515e48c5… | **ANDROID BOOTS** (boot_completed in ~20 s): display 480×800 @ 61 fps, Wi-Fi on, 6 vendor modules, touch/keys/headset input, exFAT. Issues: **no sound card** (machine driver returned -EINVAL: BT-CVSD DT node design differs), battery reads 100 %/25.0 °C (fuel gauge netlink "Protocol not supported"), hwcomposer `getPrivateHandleInfo err -5`, PQ ioctls rejected | release build 0001–0016: stock-matching `disp_session.h` (Vgdn1942 revision, sizes verified = stock) |
-| 2026-11-20 | boot | `boot-20261120-160657-p17.img` | (pending) | + patch 0017: sound card without BT-CVSD link |
+| 2026-11-20 | boot | `boot-20261120-160657-p17.img` sha256 e41d964f… | **OK — current boot image.** Android boots; sound card `mt-snd-card`; user-verified: Spotify on speaker + headphones, FM radio, touch | + patch 0017: sound card without BT-CVSD link |
 
 
 
