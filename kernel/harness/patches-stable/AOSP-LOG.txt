@@ -1,0 +1,11 @@
+5754d1261 UPSTREAM: dm: do not allow readahead to limit IO size
+dbe98dfd6 ANDROID: xfrm: remove in_compat_syscall() checks
+5d454882b ANDROID: Add a tracepoint for mapping inode to full path
+e0b9909ce ANDROID: fix a bug in quota2
+5cd9121fc UPSTREAM: dm verity fec: fix hash block number in verity_fec_decode
+267c3d440 UPSTREAM: binder: Fix race between mmap() and binder_alloc_print_pages()
+8b477a77b ANDROID: xt_qtaguid: fix UAF race
+e6c71ab3a net: socket: set sock->sk to NULL after calling proto_ops::release()
+06d66b3b0 ANDROID: xt_qtaguid: Remove tag_entry from process list on untag
+f33e01af8 Revert "UPSTREAM: dm: do not allow readahead to limit IO size"
+1f68ebee2 binder_alloc: add binder_alloc_get_vma() + smp_wmb on vma publish (completes AOSP print_pages race fix on this tree)

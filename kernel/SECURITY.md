@@ -9,7 +9,7 @@ Rule: every series must keep `out/modversions.txt` all OK (vendor Wi-Fi/BT/FM/GP
 | Series | Source | Patches | Status |
 |---|---|---|---|
 | 1 | linux-3.18.y stable v3.18.120 … v3.18.140 | `patches-stable/1000-…` | **done 2026-11-20** (p23-stable): 1,393 clean, 8 hand-resolved, 26 already present, 9 not built, 4 skipped; see `patches-stable/STABLE-LOG.txt`, `TRIAGE.txt` |
-| 2 | AOSP `kernel/common` `android-3.18` (fixes not in 3.18.140) | | not started |
+| 2 | AOSP `kernel/common` `deprecated/android-3.18` (to 2021-01, fixes not in 3.18.140) | `patches-stable/1001-…` | **done 2026-11-20** (p24-aosp): 49 Android-tagged commits since 2018-08 → 5 applied, 2 hand-applied, 9 already present, 1 reverted, 3 skipped, 29 not built; see `AOSP-LOG.txt`, `AOSP-TRIAGE.txt` |
 | 3 | Android Security Bulletins 2019-06 → present, kernel CVEs | | not started |
 | 4 | MediaTek product security bulletins (MT6750/MT6755) | | not started |
 | 5 | Config hardening | `config.fragment` | not started |

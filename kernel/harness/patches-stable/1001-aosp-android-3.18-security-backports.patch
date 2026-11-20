@@ -1,0 +1,377 @@
+diff --git a/drivers/md/dm-verity-fec.c b/drivers/md/dm-verity-fec.c
+index 1dd667b97..4844906c4 100644
+--- a/drivers/md/dm-verity-fec.c
++++ b/drivers/md/dm-verity-fec.c
+@@ -450,7 +450,7 @@ int verity_fec_decode(struct dm_verity *v, struct dm_verity_io *io,
+ 	fio->level++;
+ 
+ 	if (type == DM_VERITY_BLOCK_TYPE_METADATA)
+-		block += v->data_blocks;
++		block = block - v->hash_start + v->data_blocks;
+ 
+ 	/*
+ 	 * For RS(M, N), the continuous FEC data is divided into blocks of N
+diff --git a/drivers/staging/android/binder_alloc.c b/drivers/staging/android/binder_alloc.c
+index 33e1eee1f..f1f769644 100644
+--- a/drivers/staging/android/binder_alloc.c
++++ b/drivers/staging/android/binder_alloc.c
+@@ -722,7 +722,11 @@ int binder_alloc_mmap_handler(struct binder_alloc *alloc,
+ 	buffer->free = 1;
+ 	binder_insert_free_buffer(alloc, buffer);
+ 	alloc->free_async_space = alloc->buffer_size / 2;
+-	barrier();
++	/*
++	 * mp3-harness: publish vma only after the allocator is fully set up; pairs with smp_rmb()
++	 * in binder_alloc_get_vma() (upstream binder_alloc_set_vma() ordering).
++	 */
++	smp_wmb();
+ 	alloc->vma = vma;
+ 	alloc->vma_vm_mm = vma->vm_mm;
+ 	/* Same as mmgrab() in later kernel versions */
+@@ -841,6 +845,19 @@ void binder_alloc_print_allocated(struct seq_file *m,
+ 	mutex_unlock(&alloc->mutex);
+ }
+ 
++/* mp3-harness: helper from upstream binder (needed by the print_pages race fix) */
++static struct vm_area_struct *binder_alloc_get_vma(struct binder_alloc *alloc)
++{
++	struct vm_area_struct *vma = NULL;
++
++	if (alloc->vma) {
++		/* Look at description in binder_alloc_mmap_handler (smp_wmb) */
++		smp_rmb();
++		vma = alloc->vma;
++	}
++	return vma;
++}
++
+ /**
+  * binder_alloc_print_pages() - print page usage
+  * @m:     seq_file for output via seq_printf()
+@@ -856,14 +873,20 @@ void binder_alloc_print_pages(struct seq_file *m,
+ 	int free = 0;
+ 
+ 	mutex_lock(&alloc->mutex);
+-	for (i = 0; i < alloc->buffer_size / PAGE_SIZE; i++) {
+-		page = &alloc->pages[i];
+-		if (!page->page_ptr)
+-			free++;
+-		else if (list_empty(&page->lru))
+-			active++;
+-		else
+-			lru++;
++	/*
++	 * Make sure the binder_alloc is fully initialized, otherwise we might
++	 * read inconsistent state.
++	 */
++	if (binder_alloc_get_vma(alloc) != NULL) {
++		for (i = 0; i < alloc->buffer_size / PAGE_SIZE; i++) {
++			page = &alloc->pages[i];
++			if (!page->page_ptr)
++				free++;
++			else if (list_empty(&page->lru))
++				active++;
++			else
++				lru++;
++		}
+ 	}
+ 	mutex_unlock(&alloc->mutex);
+ 	seq_printf(m, "  pages: %d:%d:%d\n", active, lru, free);
+diff --git a/fs/namei.c b/fs/namei.c
+index ac8311c29..f3c8f6be2 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -40,6 +40,9 @@
+ #include "internal.h"
+ #include "mount.h"
+ 
++#define CREATE_TRACE_POINTS
++#include <trace/events/namei.h>
++
+ /* [Feb-1997 T. Schoebel-Theuer]
+  * Fundamental changes in the pathname lookup mechanisms (namei)
+  * were necessary because of omirr.  The reason is that omirr needs
+@@ -621,6 +624,81 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
+ 	return dentry->d_op->d_revalidate(dentry, flags);
+ }
+ 
++#define INIT_PATH_SIZE 64
++
++static void success_walk_trace(struct nameidata *nd)
++{
++	struct path *pt = &nd->path;
++	struct inode *i = nd->inode;
++	char buf[INIT_PATH_SIZE], *try_buf;
++	int cur_path_size;
++	char *p;
++
++	/* When eBPF/ tracepoint is disabled, keep overhead low. */
++	if (!trace_inodepath_enabled())
++		return;
++
++	/* First try stack allocated buffer. */
++	try_buf = buf;
++	cur_path_size = INIT_PATH_SIZE;
++
++	while (cur_path_size <= PATH_MAX) {
++		/* Free previous heap allocation if we are now trying
++		 * a second or later heap allocation.
++		 */
++		if (try_buf != buf)
++			kfree(try_buf);
++
++		/* All but the first alloc are on the heap. */
++		if (cur_path_size != INIT_PATH_SIZE) {
++			try_buf = kmalloc(cur_path_size, GFP_KERNEL);
++			if (!try_buf) {
++				try_buf = buf;
++				sprintf(try_buf, "error:buf_alloc_failed");
++				break;
++			}
++		}
++
++		p = d_path(pt, try_buf, cur_path_size);
++
++		if (!IS_ERR(p)) {
++			char *end = mangle_path(try_buf, p, "\n");
++
++			if (end) {
++				try_buf[end - try_buf] = 0;
++				break;
++			} else {
++				/* On mangle errors, double path size
++				 * till PATH_MAX.
++				 */
++				cur_path_size = cur_path_size << 1;
++				continue;
++			}
++		}
++
++		if (PTR_ERR(p) == -ENAMETOOLONG) {
++			/* If d_path complains that name is too long,
++			 * then double path size till PATH_MAX.
++			 */
++			cur_path_size = cur_path_size << 1;
++			continue;
++		}
++
++		sprintf(try_buf, "error:d_path_failed_%lu",
++			-1 * PTR_ERR(p));
++		break;
++	}
++
++	if (cur_path_size > PATH_MAX)
++		sprintf(try_buf, "error:d_path_name_too_long");
++
++	trace_inodepath(i, try_buf);
++
++	if (try_buf != buf)
++		kfree(try_buf);
++	return;
++}
++
+ /**
+  * complete_walk - successful completion of path walk
+  * @nd:  pointer nameidata
+@@ -659,15 +737,21 @@ static int complete_walk(struct nameidata *nd)
+ 		rcu_read_unlock();
+ 	}
+ 
+-	if (likely(!(nd->flags & LOOKUP_JUMPED)))
++	if (likely(!(nd->flags & LOOKUP_JUMPED))) {
++		success_walk_trace(nd);
+ 		return 0;
++	}
+ 
+-	if (likely(!(dentry->d_flags & DCACHE_OP_WEAK_REVALIDATE)))
++	if (likely(!(dentry->d_flags & DCACHE_OP_WEAK_REVALIDATE))) {
++		success_walk_trace(nd);
+ 		return 0;
++	}
+ 
+ 	status = dentry->d_op->d_weak_revalidate(dentry, nd->flags);
+-	if (status > 0)
++	if (status > 0) {
++		success_walk_trace(nd);
+ 		return 0;
++	}
+ 
+ 	if (!status)
+ 		status = -ESTALE;
+diff --git a/include/trace/events/namei.h b/include/trace/events/namei.h
+new file mode 100644
+index 000000000..e8c3e216a
+--- /dev/null
++++ b/include/trace/events/namei.h
+@@ -0,0 +1,42 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM namei
++
++#if !defined(_TRACE_INODEPATH_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_INODEPATH_H
++
++#include <linux/types.h>
++#include <linux/tracepoint.h>
++#include <linux/mm.h>
++#include <linux/memcontrol.h>
++#include <linux/device.h>
++#include <linux/kdev_t.h>
++
++TRACE_EVENT(inodepath,
++		TP_PROTO(struct inode *inode, char *path),
++
++		TP_ARGS(inode, path),
++
++		TP_STRUCT__entry(
++			/* dev_t and ino_t are arch dependent bit width
++			 * so just use 64-bit
++			 */
++			__field(unsigned long, ino)
++			__field(unsigned long, dev)
++			__string(path, path)
++		),
++
++		TP_fast_assign(
++			__entry->ino = inode->i_ino;
++			__entry->dev = inode->i_sb->s_dev;
++			__assign_str(path, path);
++		),
++
++		TP_printk("dev %d:%d ino=%lu path=%s",
++			MAJOR(__entry->dev), MINOR(__entry->dev),
++			__entry->ino, __get_str(path))
++);
++#endif /* _TRACE_INODEPATH_H */
++
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff --git a/net/netfilter/xt_qtaguid.c b/net/netfilter/xt_qtaguid.c
+index 411e3a3d0..e740e40c8 100644
+--- a/net/netfilter/xt_qtaguid.c
++++ b/net/netfilter/xt_qtaguid.c
+@@ -1066,18 +1066,6 @@ static struct sock_tag *get_sock_stat_nl(const struct sock *sk)
+ 	return sock_tag_tree_search(&sock_tag_tree, sk);
+ }
+ 
+-static struct sock_tag *get_sock_stat(const struct sock *sk)
+-{
+-	struct sock_tag *sock_tag_entry;
+-	MT_DEBUG("qtaguid: get_sock_stat(sk=%p)\n", sk);
+-	if (!sk)
+-		return NULL;
+-	spin_lock_bh(&sock_tag_list_lock);
+-	sock_tag_entry = get_sock_stat_nl(sk);
+-	spin_unlock_bh(&sock_tag_list_lock);
+-	return sock_tag_entry;
+-}
+-
+ static int ipx_proto(const struct sk_buff *skb,
+ 		     struct xt_action_param *par)
+ {
+@@ -1314,12 +1302,15 @@ static void if_tag_stat_update(const char *ifname, uid_t uid,
+ 	 * Look for a tagged sock.
+ 	 * It will have an acct_uid.
+ 	 */
+-	sock_tag_entry = get_sock_stat(sk);
++	spin_lock_bh(&sock_tag_list_lock);
++	sock_tag_entry = sk ? get_sock_stat_nl(sk) : NULL;
+ 	if (sock_tag_entry) {
+ 		tag = sock_tag_entry->tag;
+ 		acct_tag = get_atag_from_tag(tag);
+ 		uid_tag = get_utag_from_tag(tag);
+-	} else {
++	}
++	spin_unlock_bh(&sock_tag_list_lock);
++	if (!sock_tag_entry) {
+ 		acct_tag = make_atag_from_value(0);
+ 		tag = combine_atag_with_uid(acct_tag, uid);
+ 		uid_tag = make_tag_from_uid(uid);
+@@ -2422,7 +2413,8 @@ int qtaguid_untag(struct socket *el_socket, bool kernel)
+ 			     "pid=%u tgid=%u sk_pid=%u, uid=%u\n", __func__,
+ 			     current->pid, current->tgid, sock_tag_entry->pid,
+ 			     from_kuid(&init_user_ns, current_fsuid()));
+-	/* This check is needed because tagging from a process that
++	/*
++	 * This check is needed because tagging from a process that
+ 	 * didn’t open /dev/xt_qtaguid still adds the sock_tag_entry
+ 	 * to sock_tag_tree.
+ 	 */
+diff --git a/net/netfilter/xt_quota2.c b/net/netfilter/xt_quota2.c
+index 834594aa0..0a3a95829 100644
+--- a/net/netfilter/xt_quota2.c
++++ b/net/netfilter/xt_quota2.c
+@@ -306,6 +306,8 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
+ {
+ 	struct xt_quota_mtinfo2 *q = (void *)par->matchinfo;
+ 	struct xt_quota_counter *e = q->master;
++	int charge = (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
++	bool no_change = q->flags & XT_QUOTA_NO_CHANGE;
+ 	bool ret = q->flags & XT_QUOTA_INVERT;
+ 
+ 	spin_lock_bh(&e->lock);
+@@ -314,24 +316,21 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
+ 		 * While no_change is pointless in "grow" mode, we will
+ 		 * implement it here simply to have a consistent behavior.
+ 		 */
+-		if (!(q->flags & XT_QUOTA_NO_CHANGE)) {
+-			e->quota += (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
+-		}
+-		ret = true;
++		if (!no_change)
++			e->quota += charge;
++		ret = true; /* note: does not respect inversion (bug??) */
+ 	} else {
+-		if (e->quota >= skb->len) {
+-			if (!(q->flags & XT_QUOTA_NO_CHANGE))
+-				e->quota -= (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
++		if (e->quota > charge) {
++			if (!no_change)
++				e->quota -= charge;
+ 			ret = !ret;
+-		} else {
++		} else if (e->quota) {
+ 			/* We are transitioning, log that fact. */
+-			if (e->quota) {
+-				quota2_log(par->hooknum,
+-					   skb,
+-					   par->in,
+-					   par->out,
+-					   q->name);
+-			}
++			quota2_log(par->hooknum,
++				   skb,
++				   par->in,
++				   par->out,
++				   q->name);
+ 			/* we do not allow even small packets from now on */
+ 			e->quota = 0;
+ 		}
+diff --git a/net/socket.c b/net/socket.c
+index d4cd7f97b..8d338255a 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -606,6 +606,7 @@ void sock_release(struct socket *sock)
+ 		struct module *owner = sock->ops->owner;
+ 
+ 		sock->ops->release(sock);
++		sock->sk = NULL;
+ 		sock->ops = NULL;
+ 		module_put(owner);
+ 	}
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 6c980b3dd..7e8593a58 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -1856,11 +1856,6 @@ int xfrm_user_policy(struct sock *sk, int optname, u8 __user *optval, int optlen
+ 	struct xfrm_mgr *km;
+ 	struct xfrm_policy *pol = NULL;
+ 
+-#ifdef CONFIG_COMPAT
+-	if (is_compat_task())
+-		return -EOPNOTSUPP;
+-#endif
+-
+ 	if (!optval && !optlen) {
+ 		xfrm_sk_policy_insert(sk, XFRM_POLICY_IN, NULL);
+ 		xfrm_sk_policy_insert(sk, XFRM_POLICY_OUT, NULL);

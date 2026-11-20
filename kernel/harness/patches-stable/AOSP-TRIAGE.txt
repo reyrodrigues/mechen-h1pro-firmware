@@ -1,0 +1,49 @@
+CONFLICT|0146182ad|2018-08-25|FROMLIST: ANDROID: binder: Add BINDER_GET_NODE_INFO_FOR_REF ioctl.|drivers/staging/android/uapi/binder.h
+already-in-tree|6c02a624b|2018-09-05|BACKPORT: xfrm: Allow Output Mark to be Updated Using UPDSA|net/xfrm/xfrm_state.c
+already-in-tree|a46806b0e|2018-10-25|ANDROID: sdcardfs: Add sandbox|fs/sdcardfs/derived_perm.c
+already-in-tree|017482948|2018-10-25|ANDROID: sdcardfs: Add option to not link obb|fs/sdcardfs/derived_perm.c fs/sdcardfs/main.c fs/sdcardfs/sdcardfs.h
+CONFLICT|650910cad|2018-11-06|UPSTREAM: binder: fix race that allows malicious free of live buffer|drivers/staging/android/binder.c
+not-built|ab172165e|2018-12-24|ANDROID: f2fs: Complement "android_fs" tracepoint of read path|fs/f2fs/data.c
+not-built|5227e2a47|2019-01-10|ANDROID: cuttlefish_defconfig: remove DM_VERITY_HASH_PREFETCH_MIN_SIZE|arch/x86/configs/x86_64_cuttlefish_defconfig
+APPLIED|7448ccae6|2018-12-18|UPSTREAM: dm: do not allow readahead to limit IO size|drivers/md/dm-table.c
+already-in-tree|c4c36d506|2018-12-18|UPSTREAM: dm: do not allow readahead to limit IO size|drivers/md/dm-table.c
+CONFLICT|fa83b8c1e|2019-01-14|FROMGIT: binder: create node flag to request sender's security context|drivers/staging/android/binder.c drivers/staging/android/uapi/binder.h
+not-built|afc3a0fea|2019-02-13|ANDROID: ion_dummy_driver: Use IS_ERR_OR_NULL() before destroying heaps|drivers/staging/android/ion/ion_dummy_driver.c
+not-built|c81de9c5f|2019-02-13|ANDROID: ion_dummy_driver: Rework ion_dummy_driver to avoid direct indexing into the heaps|drivers/staging/android/ion/ion_dummy_driver.c
+not-built|5f13ee970|2019-02-13|ANDROID: ion_dummy_driver: Remove SYSTEM_CONTIG heap|drivers/staging/android/ion/ion_dummy_driver.c
+CONFLICT|e0c24a32a|2019-02-21|UPSTREAM: net: socket: set sock->sk to NULL after calling proto_ops::release()|net/socket.c
+not-built|16e8c7c8b|2019-04-01|ANDROID: drop CONFIG_INPUT_KEYCHORD from cuttlefish|arch/x86/configs/x86_64_cuttlefish_defconfig
+CONFLICT|29227b95d|2019-06-05|BACKPORT: binder: fix race between munmap() and direct reclaim|drivers/staging/android/binder_alloc.c
+already-in-tree|f57ee63fd|2019-04-24|UPSTREAM: binder: check for overflow when alloc for security context|drivers/staging/android/binder.c
+already-in-tree|74274b061|2019-07-09|BACKPORT: binder: Set end of SG buffer area properly.|drivers/staging/android/binder.c
+APPLIED|8417de414|2019-07-25|ANDROID: xfrm: remove in_compat_syscall() checks|net/xfrm/xfrm_state.c
+not-built|56c184db3|2019-02-04|ANDROID: cuttlefish_defconfig: Enable CONFIG_RTC_HCTOSYS|arch/x86/configs/x86_64_cuttlefish_defconfig
+not-built|65d75b787|2019-07-23|ANDROID: enable CONFIG_RTC_DRV_TEST on cuttlefish|arch/x86/configs/x86_64_cuttlefish_defconfig
+APPLIED|1b7c7b105|2019-03-14|ANDROID: Add a tracepoint for mapping inode to full path|fs/namei.c include/trace/events/namei.h
+CONFLICT|75275845f|2019-08-29|ANDROID: fiq_debugger: remove|drivers/staging/android/Makefile drivers/trusty/trusty-fiq.h
+not-built|b565e62c1|2020-03-20|UPSTREAM: bpf: Explicitly memset the bpf_attr structure|kernel/bpf/syscall.c
+APPLIED|99d7e717c|2020-08-17|ANDROID: fix a bug in quota2|net/netfilter/xt_quota2.c
+not-built|af621e09e|2020-08-06|UPSTREAM: Bluetooth: A2MP: Fix not initializing all members|net/bluetooth/a2mp.c
+APPLIED|95fdaa4a1|2020-04-10|UPSTREAM: dm verity fec: fix hash block number in verity_fec_decode|drivers/md/dm-verity-fec.c
+not-built|68c3596cd|2020-03-17|UPSTREAM: ext2: fix debug reference to ext2_xattr_cache|fs/ext2/xattr.c
+not-built|42eb86558|2020-02-03|UPSTREAM: smp_mb__{before,after}_atomic(): update Documentation|Documentation/memory-barriers.txt
+not-built|8d3b9b444|2020-01-04|UPSTREAM: fs/posix_acl.c: fix kernel-doc warnings|fs/posix_acl.c
+APPLIED|eb533cbd7|2019-10-18|UPSTREAM: binder: Fix race between mmap() and binder_alloc_print_pages()|drivers/staging/android/binder_alloc.c
+not-built|07852cfd8|2019-04-14|UPSTREAM: staging: android: vsoc: fix copy_from_user overrun|drivers/staging/android/vsoc.c
+not-built|0437ea9b8|2019-02-18|UPSTREAM: net: crypto set sk to NULL when af_alg_release.|crypto/af_alg.c
+not-built|a8028fb5e|2018-10-05|UPSTREAM: mac80211_hwsim: fix module init error paths for netlink|drivers/net/wireless/mac80211_hwsim.c
+not-built|5a1d00463|2020-12-18|ANDROID: usb: gadget: f_accessory: fix CTS test stuck|drivers/usb/gadget/function/f_accessory.c
+not-built|e00d2352d|2020-12-15|ANDROID: usb: f_accessory: Remove stale comments|drivers/usb/gadget/function/f_accessory.c
+not-built|089f40c5b|2020-12-15|ANDROID: usb: f_accessory: Remove useless non-debug prints|drivers/usb/gadget/function/f_accessory.c
+not-built|cf6c7cf82|2020-12-15|ANDROID: usb: f_accessory: Remove useless assignment|drivers/usb/gadget/function/f_accessory.c
+not-built|878433b09|2020-12-15|ANDROID: usb: f_accessory: Wrap '_acc_dev' in get()/put() accessors|drivers/usb/gadget/function/f_accessory.c
+not-built|1f1baf4f8|2020-12-15|ANDROID: usb: f_accessory: Add refcounting to global 'acc_dev'|drivers/usb/gadget/function/f_accessory.c
+not-built|d3c9e6d5a|2020-12-15|ANDROID: usb: f_accessory: Fix teardown ordering in acc_release()|drivers/usb/gadget/function/f_accessory.c
+not-built|d4f0ff5c9|2020-12-15|ANDROID: usb: f_accessory: Don't corrupt global state on double registration|drivers/usb/gadget/function/f_accessory.c
+not-built|89f6d216d|2020-12-15|ANDROID: usb: f_accessory: Cancel any pending work before teardown|drivers/usb/gadget/function/f_accessory.c
+not-built|8a2145cd0|2020-12-15|ANDROID: usb: f_accessory: Avoid bitfields for shared variables|drivers/usb/gadget/function/f_accessory.c
+not-built|50e1b77e4|2020-12-15|ANDROID: usb: f_accessory: Don't drop NULL reference in acc_disconnect()|drivers/usb/gadget/function/f_accessory.c
+not-built|5869e1145|2021-01-04|ANDROID: usb: f_accessory: Do not sync non-existent work queues|drivers/usb/gadget/function/f_accessory.c
+CONFLICT|8f9138d6c|2021-01-11|ANDROID: xt_qtaguid: Remove tag_entry from process list on untag|net/netfilter/xt_qtaguid.c
+APPLIED|d67414846|2021-04-13|ANDROID: xt_qtaguid: fix UAF race|net/netfilter/xt_qtaguid.c
+not-built|a7378d130|2021-09-24|UPSTREAM: ovl: fix missing negative dentry check in ovl_rename()|fs/overlayfs/dir.c
