@@ -1,0 +1,52 @@
+BUILT|120|c302a0ec56d6|usb: gadget: composite: fix delayed_status race condition when set_interface|drivers/usb/gadget/composite.c
+BUILT|120|5554e8fc645c|staging: android: ion: check for kref overflow|drivers/staging/android/ion/ion.c
+BUILT|121|319bc6ceb7c1|sched/sysctl: Check user input value of sysctl_sched_time_avg|kernel/sysctl.c
+BUILT|121|872f590e7a18|arm64: mm: check for upper PAGE_SHIFT bits in pfn_valid()|arch/arm64/mm/init.c
+already-in-tree|123|2b8f74c8f0a4|mm: get rid of vmacache_flush_all() entirely|
+already-in-tree|124|5e290d8b45fe|arm64: Add trace_hardirqs_off annotation in ret_to_user|
+BUILT|124|88fc9f86ad64|HID: sony: Update device ids|drivers/hid/hid-core.c drivers/hid/hid-ids.h drivers/hid/hid-sony.c
+HEADER|124|6b7066bc33fe|HID: sony: Support DS4 dongle|drivers/hid/hid-ids.h drivers/hid/hid-sony.c
+BUILT|124|d82ad70e8aff|staging: android: ion: fix ION_IOC_{MAP,SHARE} use-after-free|drivers/staging/android/ion/ion.c
+BUILT|124|685adc73d611|Make file credentials available to the seqfile interfaces|fs/seq_file.c
+BUILT|124|d9e61bdd84b2|PM / core: Clear the direct_complete flag on errors|drivers/base/power/main.c
+BUILT|124|8d419749b274|ext4: only look at the bg_flags field if it is valid|fs/ext4/balloc.c fs/ext4/ialloc.c
+already-in-tree|124|08b1fd27cdb8|ext4: fix check to prevent initializing reserved inodes|
+BUILT|124|912e35d18cd2|ext4: add corruption check in ext4_xattr_set_entry()|fs/ext4/xattr.c
+BUILT|124|f8b8db07ab69|ext4: always verify the magic number in xattr blocks|fs/ext4/xattr.c
+already-in-tree|124|fd2634366fca|ext4: never move the system.data xattr out of the inode body|
+already-in-tree|124|292dc9673821|ext4: add more inode number paranoia checks|
+already-in-tree|124|524100251d15|jbd2: don't mark block as modified if the handle is out of credits|
+already-in-tree|124|4faa5582856e|ext4: avoid running out of journal credits when appending to an inline file|
+already-in-tree|125|3237836242f7|unix: correctly track in-flight fds in sending process user_struct|
+already-in-tree|125|01393bd29dfb|/proc/iomem: only expose physical resource addresses to privileged users|
+already-in-tree|125|0f1490a75739|mremap: properly flush TLB before releasing the page|
+not-built|128|1bdb2d2f065b|kdb: Use strscpy with destination buffer size|kernel/debug/kdb/kdb_io.c
+HEADER|128|d5942fa8beca|arm64: remove no-op -p linker flag|arch/arm64/Makefile
+not-built|128|69700b23ee00|Input: initialize device counter variables with -1|drivers/input/joystick/xpad.c
+not-built|128|70d7e0cb4248|Input: xpad - add rumble support for Xbox One controller|drivers/input/joystick/xpad.c
+not-built|128|30221037921b|Input: xpad - set the LEDs properly on XBox Wireless controllers|drivers/input/joystick/xpad.c
+not-built|128|b92cf9056938|Input: xpad - re-send LED command on present event|drivers/input/joystick/xpad.c
+already-in-tree|128|6f6c54ceb4a7|Input: xpad - add Covert Forces edition of the Xbox One controller|
+already-in-tree|128|76caf6084180|Input: xpad - fix Razer Atrox Arcade Stick button mapping|
+not-built|128|a9040f812372|Input: xpad - clarify LED enumeration|drivers/input/joystick/xpad.c
+not-built|128|12a85e058d8c|Input: xpad - use ida() for finding the pad_nr|drivers/input/joystick/xpad.c
+not-built|128|e2e233d1a986|Input: xpad - remove needless bulk out URB used for LED setup|drivers/input/joystick/xpad.c
+already-in-tree|128|9a249a885bb8|Input: xpad - factor out URB submission in xpad_play_effect|
+already-in-tree|128|8d20f7d97a08|Input: xpad - x360w: report dpad as buttons and axes|
+not-built|128|7e0f79ac7989|Input: xpad - move the input device creation to a new function|drivers/input/joystick/xpad.c
+already-in-tree|128|80426963a312|Input: xpad - query wireless controller state at init|
+already-in-tree|128|d6d5f0290ba6|Input: xpad - fix clash of presence handling with LED setting|
+already-in-tree|128|40b3de594d27|Input: xpad - fix oops when attaching an unknown Xbox One gamepad|
+BUILT|128|b4575761960a|tty: wipe buffer if not echoing data|drivers/tty/n_tty.c
+HEADER|130|1ee4aba9b0f5|selftests: Move networking/timestamping from Documentation|tools/testing/selftests/networking/timestamping/.gitignore
+BUILT|131|fa3ec41ea511|swiotlb: clean up reporting|lib/swiotlb.c
+BUILT|135|98af4f7e3377|xfrm: refine validation of template and selector families|net/xfrm/xfrm_user.c
+already-in-tree|137|7828fe7452f1|media: uvcvideo: Fix 'type' check leading to overflow|
+already-in-tree|138|e88dd5c0a4c3|mmc: block: Allow more than 8 partitions per card|
+already-in-tree|138|60bb79a488db|android: unconditionally remove callbacks in sync_fence_free()|
+already-in-tree|138|0d9aeed2703d|staging: ashmem: Avoid deadlock with mmap/shrink|
+already-in-tree|138|113e4806435d|staging: ashmem: Add missing include|
+already-in-tree|138|5b96c46521e2|staging: ion: Set minimum carveout heap allocation order to PAGE_SHIFT|
+already-in-tree|138|0c99d0dc291d|arm64/kernel: fix incorrect EL0 check in inv_entry macro|
+already-in-tree|138|91366a76f2ea|ipv6: fix endianness error in icmpv6_err|
+already-in-tree|138|bf925b4fe5f9|usb: gadget: configfs: add mutex lock before unregister gadget|
