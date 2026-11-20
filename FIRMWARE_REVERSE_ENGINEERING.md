@@ -233,6 +233,9 @@ Tooling notes: mtkclient in `.venv-mtk` (git-ignored) needs (a) `--preloader <pa
 | 2026-11-20 | — (unlock) | `fastboot flashing unlock` | OK, `unlocked: yes`, userdata wiped | first write-type action; first boot after wipe ~5 min |
 | 2026-11-20 | boot | `kernel/out/boot-20261118-201249.img` sha256 786f5e84591bb58d… | **FAIL: boot loop** (LK orange screen → reset, no USB, no ADB); early-crash log lost (exited via recovery, which overwrote pstore) | first custom kernel; `fastboot boot` proved non-functional on this LK (RAM image ignored, reboots to flash). Rollback: `fastboot flash boot device/m2/partitions/boot.bin` |
 | 2026-11-20 | boot | `device/m2/partitions/boot.bin` (backup, sha256 verified) | OK, stock kernel boots | rollback via fastboot (loop → Volume Up boot menu → recovery → "Reboot to bootloader") |
+| 2026-11-20 | boot | `boot-20261118-201249.img` (attempt 2) → restored `boot.bin` | loop again; **log captured**: ~8.6 s then storm of `[SPM] IRQ1 HANDLER SHOULD NOT BE EXECUTED` → WDT | exit via Volume Up → Fastboot keeps pstore |
+| 2026-11-20 | boot | `boot-20261120-142500-DIAG-spm.img` sha256 7cd693ca… | loop; log: no SPM storm, but M4U IRQ storm (sta=0) at 3.1 s → **root cause: INT_POL polarity writes dropped** (tree writes directly / SiP 0x287; stock uses ATF SiP 0x82000201) | DIAG: SPM aux IRQ rate-limited + disabled after 50 hits |
+| 2026-11-20 | boot | `boot-20261120-143334-polfix-DIAG.img` sha256 d859b55a… | loop; **no IRQ storms** (polarity fix confirmed); clean panic at 2.94 s: NULL deref in `pinctrl_select_state` from `mtk_mt6331_codec_dev_probe` (tree's FIH ext-amp pinctrl24, absent on this board) | patch 0014 polarity fix + DIAG |
 
 
 

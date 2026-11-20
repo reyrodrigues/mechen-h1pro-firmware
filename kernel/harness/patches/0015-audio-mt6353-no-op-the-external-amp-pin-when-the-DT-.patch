@@ -1,0 +1,79 @@
+From b5158362fdbe97613dde209011f71b734aa0471d Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 14:44:02 +0000
+Subject: [PATCH] audio mt6353: no-op the external-amp pin when the DT doesn't
+ describe it (stock uses internal amp; fixes boot panic)
+
+---
+ sound/soc/mediatek/mt6750/mt_soc_codec_6353.c | 25 ++++++++++++++-----
+ 1 file changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/mediatek/mt6750/mt_soc_codec_6353.c b/sound/soc/mediatek/mt6750/mt_soc_codec_6353.c
+index 29d3df53..914067b5 100644
+--- a/sound/soc/mediatek/mt6750/mt_soc_codec_6353.c
++++ b/sound/soc/mediatek/mt6750/mt_soc_codec_6353.c
+@@ -223,6 +223,19 @@ struct pinctrl_state *extPAen_default;
+ struct pinctrl_state *extPAen_High;
+ struct pinctrl_state *extPAen_Low;
+ 
++/*
++ * mp3-harness: the external-amp (AW87318) pin code comes from the phone this tree was taken from.
++ * The MECHEN H1-Pro has no such pin in its device tree and, like the stock kernel, drives the
++ * MT6353 internal speaker amp only (stock codec probe does no pinctrl at all). Selecting the
++ * missing states dereferenced an ERR_PTR and panicked at boot. Make every access a no-op then.
++ */
++static void extpa_select(struct pinctrl_state *state)
++{
++	if (IS_ERR_OR_NULL(pinctrl24) || IS_ERR_OR_NULL(state))
++		return;
++	pinctrl_select_state(pinctrl24, state);
++}
++
+ #ifdef CONFIG_FIH_HAC
+ //add hac
+ struct pinctrl *pinctrl61;
+@@ -2279,11 +2292,11 @@ static int Speaker_Amp_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_va
+ static void AW87318_MODE2(void)
+ {
+ 	do {
+-		pinctrl_select_state(pinctrl24, extPAen_High);
++		extpa_select(extPAen_High);
+ 		udelay(2);
+-		pinctrl_select_state(pinctrl24, extPAen_Low);
++		extpa_select(extPAen_Low);
+ 		udelay(2);
+-		pinctrl_select_state(pinctrl24, extPAen_High);
++		extpa_select(extPAen_High);
+ 	} while (0);
+ }
+ #endif
+@@ -2326,7 +2339,7 @@ static void Ext_Speaker_Amp_Change(bool enable)
+ #ifdef CONFIG_AUDIO_AW87318
+ 		AW87318_MODE2();
+ #else
+-		pinctrl_select_state(pinctrl24, extPAen_High);
++		extpa_select(extPAen_High);
+ #endif
+ 		pr_warn("Ext_Speaker_Amp_Change enable\n");
+ #ifndef CONFIG_MTK_SPEAKER
+@@ -2372,7 +2385,7 @@ static void Ext_Speaker_Amp_Change(bool enable)
+ 		pr_debug("Ext_Speaker_Amp_Change ON-\n");
+ 	} else {
+ 		pr_debug("Ext_Speaker_Amp_Change OFF+\n");
+-		pinctrl_select_state(pinctrl24, extPAen_Low);
++		extpa_select(extPAen_Low);
+ 		pr_warn("Ext_Speaker_Amp_Change disable\n");
+ #ifndef CONFIG_MTK_SPEAKER
+ #if defined(CONFIG_MTK_LEGACY)
+@@ -5566,7 +5579,7 @@ static int mtk_mt6331_codec_dev_probe(struct platform_device *pdev)
+ 		pr_warn("Cannot find pinctrl24 extPAenLow!\n");
+ 	}
+ 
+-	pinctrl_select_state(pinctrl24, extPAen_Low);
++	extpa_select(extPAen_Low);
+ 	pr_warn("Ext_Speaker_Amp should be closed in initial state.\n");
+ #ifdef CONFIG_FIH_HAC
+ 
+-- 
+2.39.5 (Apple Git-154)
+

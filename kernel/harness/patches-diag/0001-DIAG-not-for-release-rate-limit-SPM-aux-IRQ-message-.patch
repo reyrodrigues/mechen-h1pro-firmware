@@ -1,0 +1,93 @@
+From b565fd2daa5fad831702e57f3bec2ebde616d04f Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 14:24:31 +0000
+Subject: [PATCH] DIAG (not for release): rate-limit SPM aux IRQ message,
+ disable a storming SPM aux IRQ after 50 hits
+
+---
+ .../misc/mediatek/base/power/spm_v2/mt_spm.c  | 32 +++++++++++++------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/misc/mediatek/base/power/spm_v2/mt_spm.c b/drivers/misc/mediatek/base/power/spm_v2/mt_spm.c
+index ee19518d..23e0c156 100644
+--- a/drivers/misc/mediatek/base/power/spm_v2/mt_spm.c
++++ b/drivers/misc/mediatek/base/power/spm_v2/mt_spm.c
+@@ -344,7 +344,7 @@ static irqreturn_t spm_irq0_handler(int irq, void *dev_id)
+ }
+ 
+ #if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6757)
+-static irqreturn_t spm_irq_aux_handler(u32 irq_id)
++static irqreturn_t spm_irq_aux_handler(u32 irq_id, int irq)
+ {
+ 	u32 isr;
+ 	unsigned long flags;
+@@ -358,44 +358,58 @@ static irqreturn_t spm_irq_aux_handler(u32 irq_id)
+ #endif
+ 	spin_unlock_irqrestore(&__spm_lock, flags);
+ 
+-	spm_err("IRQ%u HANDLER SHOULD NOT BE EXECUTED (0x%x)\n", irq_id, isr);
++	/* mp3-diag: the stock message storms on this board under our tree (2026-11-20, boot loop at ~8.6 s).
++	 * Rate-limit it and, after a burst, disable the line so boot can continue and be logged. */
++	{
++		static unsigned int hits[8];
++
++		if (irq_id < 8 && ++hits[irq_id] <= 50)
++			pr_err_ratelimited("[SPM] IRQ%u HANDLER SHOULD NOT BE EXECUTED (0x%x) hit %u\n",
++					   irq_id, isr, hits[irq_id]);
++		if (irq_id < 8 && hits[irq_id] == 50) {
++			pr_err("[SPM] mp3-diag: IRQ%u stormed 50x, disabling it (raw_sta 0x%x)\n",
++			       irq_id, spm_read(SPM_IRQ_STA));
++			dump_stack();
++			disable_irq_nosync(irq);
++		}
++	}
+ 
+ 	return IRQ_HANDLED;
+ }
+ 
+ static irqreturn_t spm_irq1_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(1);
++	return spm_irq_aux_handler(1, irq);
+ }
+ 
+ static irqreturn_t spm_irq2_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(2);
++	return spm_irq_aux_handler(2, irq);
+ }
+ 
+ static irqreturn_t spm_irq3_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(3);
++	return spm_irq_aux_handler(3, irq);
+ }
+ 
+ static irqreturn_t spm_irq4_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(4);
++	return spm_irq_aux_handler(4, irq);
+ }
+ 
+ static irqreturn_t spm_irq5_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(5);
++	return spm_irq_aux_handler(5, irq);
+ }
+ 
+ static irqreturn_t spm_irq6_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(6);
++	return spm_irq_aux_handler(6, irq);
+ }
+ 
+ static irqreturn_t spm_irq7_handler(int irq, void *dev_id)
+ {
+-	return spm_irq_aux_handler(7);
++	return spm_irq_aux_handler(7, irq);
+ }
+ #endif
+ 
+-- 
+2.39.5 (Apple Git-154)
+

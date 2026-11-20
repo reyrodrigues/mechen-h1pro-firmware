@@ -1,0 +1,46 @@
+From c99f84e80327625547387bf8b0d1605f99c6eeae Mon Sep 17 00:00:00 2001
+From: mp3-harness <harness@localhost>
+Date: Fri, 20 Nov 2026 14:33:26 +0000
+Subject: [PATCH] irq-mt-gic: write INT_POL via ATF SiP 0x82000201 like the
+ stock MECHEN kernel (fixes IRQ storms)
+
+---
+ drivers/irqchip/irq-mt-gic.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/irqchip/irq-mt-gic.c b/drivers/irqchip/irq-mt-gic.c
+index bbd71cdc..e906e051 100644
+--- a/drivers/irqchip/irq-mt-gic.c
++++ b/drivers/irqchip/irq-mt-gic.c
+@@ -178,6 +178,20 @@ void __iomem *GIC_CPU_BASE;
+ void __iomem *INT_POL_CTL0;
+ phys_addr_t INT_POL_CTL0_phys;
+ 
++#if defined(CONFIG_ARCH_MT6755) && defined(CONFIG_ARM64)
++/*
++ * mp3-harness: on the MECHEN H1-Pro the interrupt polarity registers (INT_POL_CTL, GIC reg[2])
++ * are secure-only. The stock kernel writes them through ATF SiP call 0x82000201 with the physical
++ * address (decompiled stock mt_set_pol_reg). This tree's default either writes them directly
++ * (silently dropped) or uses SiP 0x82000287, which this unit's ATF doesn't implement; both leave
++ * active-low IRQs mis-polarized and cause interrupt storms (SPM, M4U) a few seconds into boot.
++ */
++#define MTK_SIP_KERNEL_POL_WRITE_STOCK	0x82000201
++void mt_set_pol_reg(u32 reg_index, u32 value)
++{
++	mt_secure_call(MTK_SIP_KERNEL_POL_WRITE_STOCK, INT_POL_CTL0_phys + (reg_index * 4), value, 0);
++}
++#else
+ __weak void mt_set_pol_reg(u32 reg_index, u32 value)
+ {
+ #ifndef mcusys_smc_write_phy
+@@ -186,6 +200,7 @@ __weak void mt_set_pol_reg(u32 reg_index, u32 value)
+ 	mcusys_smc_write_phy((INT_POL_CTL0_phys + (reg_index * 4)), value);
+ #endif
+ }
++#endif
+ 
+ void mt_irq_set_polarity(unsigned int irq, unsigned int polarity)
+ {
+-- 
+2.39.5 (Apple Git-154)
+
