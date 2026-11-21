@@ -1,8 +1,280 @@
+diff --git a/drivers/misc/mediatek/cmdq/v2/cmdq_driver.c b/drivers/misc/mediatek/cmdq/v2/cmdq_driver.c
+index 9bc2f010b..f5299071b 100644
+--- a/drivers/misc/mediatek/cmdq/v2/cmdq_driver.c
++++ b/drivers/misc/mediatek/cmdq/v2/cmdq_driver.c
+@@ -38,6 +38,7 @@
+ #include <linux/sched.h>
+ #include <linux/pm.h>
+ #include <linux/suspend.h>
++#include <linux/cred.h>
+ #ifdef CMDQ_USE_LEGACY
+ #include <mt-plat/mt_boot.h>
+ #endif
+@@ -155,6 +156,17 @@ static int cmdq_open(struct inode *pInode, struct file *pFile)
+ 
+ 	CMDQ_VERBOSE("CMDQ driver open fd=%p begin\n", pFile);
+ 
++	/*
++	 * mp3-harness: /dev/mtk_cmdq is 0644 and this build runs SELinux permissive, so any app could
++	 * open it read-only and drive the GCE (DMA-capable command engine) through ioctls. Only
++	 * system services (uid < AID_APP) need it; refuse app and isolated uids.
++	 */
++	if (from_kuid(&init_user_ns, current_uid()) >= 10000) {
++		pr_warn_ratelimited("cmdq: open refused for uid %u (%s)\n",
++			from_kuid(&init_user_ns, current_uid()), current->comm);
++		return -EACCES;
++	}
++
+ 	pFile->private_data = kzalloc(sizeof(cmdqFileNodeStruct), GFP_KERNEL);
+ 	if (NULL == pFile->private_data) {
+ 		CMDQ_ERR("Can't allocate memory for CMDQ file node\n");
+diff --git a/drivers/misc/mediatek/cmdq/v2/cmdq_record.h b/drivers/misc/mediatek/cmdq/v2/cmdq_record.h
+index 2af50c6fc..17987a5b5 100644
+--- a/drivers/misc/mediatek/cmdq/v2/cmdq_record.h
++++ b/drivers/misc/mediatek/cmdq/v2/cmdq_record.h
+@@ -55,6 +55,10 @@ typedef struct cmdqRecStruct {
+ #ifdef CMDQ_PROFILE_MARKER_SUPPORT
+ 	cmdqProfileMarkerStruct profileMarker;
+ #endif
++#ifndef __GENKSYMS__
++	/* mp3-harness: readback slots pinned by this job (CVE-2022-20052); appended for ABI */
++	s32 slot_ids[8];
++#endif
+ } cmdqRecStruct, *cmdqRecHandle;
+ 
+ typedef dma_addr_t cmdqBackupSlotHandle;
+diff --git a/drivers/misc/mediatek/m4u/2.0/m4u.c b/drivers/misc/mediatek/m4u/2.0/m4u.c
+index 327196d0e..3724e1bc8 100755
+--- a/drivers/misc/mediatek/m4u/2.0/m4u.c
++++ b/drivers/misc/mediatek/m4u/2.0/m4u.c
+@@ -207,6 +207,14 @@ static int m4u_client_del_buf(m4u_client_t *client, m4u_buf_info_t *pList)
+ * @to-do    we need to add multi domain support here.
+ * @author K Zhang      @date 2013/11/14
+ ************************************************************/
++/*
++ * mp3-harness: CVE-2021-0611/-0612 class (MTK ALPS05403499, use after free in m4u).
++ * Buffer infos are looked up (per client, or globally via mva_get_priv) and then used after the
++ * lookup lock is dropped, while DEALLOC_MVA on another thread unlinks and frees them. This lock
++ * spans lookup+use in every user and the whole free path. Outermost m4u lock; process context.
++ */
++static DEFINE_MUTEX(m4u_buf_life_lock);
++
+ static m4u_buf_info_t *m4u_client_find_buf(m4u_client_t *client, unsigned int mva, int del)
+ {
+ 	struct list_head *pListHead;
+@@ -838,7 +846,7 @@ int m4u_dealloc_mva_sg(int eModuleID, struct sg_table *sg_table,
+ }
+ 
+ /* should not hold client->dataMutex here. */
+-int m4u_dealloc_mva(m4u_client_t *client, M4U_PORT_ID port, unsigned int mva)
++static int __m4u_dealloc_mva(m4u_client_t *client, M4U_PORT_ID port, unsigned int mva)
+ {
+ 	m4u_buf_info_t *pMvaInfo;
+ 	int ret, is_err = 0;
+@@ -923,6 +931,16 @@ int m4u_dealloc_mva(m4u_client_t *client, M4U_PORT_ID port, unsigned int mva)
+ 	return ret;
+ }
+ 
++int m4u_dealloc_mva(m4u_client_t *client, M4U_PORT_ID port, unsigned int mva)
++{
++	int ret;
++
++	mutex_lock(&m4u_buf_life_lock);
++	ret = __m4u_dealloc_mva(client, port, mva);
++	mutex_unlock(&m4u_buf_life_lock);
++	return ret;
++}
++
+ int m4u_dma_cache_flush_all(void)
+ {
+ 	smp_inner_dcache_flush_all();
+@@ -1095,7 +1113,7 @@ int m4u_cache_sync_by_range(unsigned long va, unsigned int size,
+     notes: only mva allocated by m4u_alloc_mva can use this function.
+ 	if buffer is allocated by ion, please use ion_cache_sync
+ **/
+-int m4u_cache_sync(m4u_client_t *client, M4U_PORT_ID port,
++static int __m4u_cache_sync(m4u_client_t *client, M4U_PORT_ID port,
+ 		   unsigned long va, unsigned int size, unsigned int mva,
+ 		   M4U_CACHE_SYNC_ENUM sync_type)
+ {
+@@ -1163,6 +1181,18 @@ int m4u_cache_sync(m4u_client_t *client, M4U_PORT_ID port,
+ 	return ret;
+ }
+ 
++int m4u_cache_sync(m4u_client_t *client, M4U_PORT_ID port,
++		   unsigned long va, unsigned int size, unsigned int mva,
++		   M4U_CACHE_SYNC_ENUM sync_type)
++{
++	int ret;
++
++	mutex_lock(&m4u_buf_life_lock);
++	ret = __m4u_cache_sync(client, port, va, size, mva, sync_type);
++	mutex_unlock(&m4u_buf_life_lock);
++	return ret;
++}
++
+ void m4u_dma_map_area(void *start, size_t size, M4U_DMA_DIR dir)
+ {
+ 	if (dir == M4U_DMA_FROM_DEVICE)
+@@ -1183,7 +1213,7 @@ void m4u_dma_unmap_area(void *start, size_t size, M4U_DMA_DIR dir)
+ 		dmac_unmap_area(start, size, DMA_BIDIRECTIONAL);
+ }
+ 
+-long m4u_dma_op(m4u_client_t *client, M4U_PORT_ID port,
++static long __m4u_dma_op(m4u_client_t *client, M4U_PORT_ID port,
+ 		unsigned long va, unsigned int size, unsigned int mva,
+ 		M4U_DMA_TYPE dma_type, M4U_DMA_DIR dma_dir)
+ {
+@@ -1282,6 +1312,18 @@ long m4u_dma_op(m4u_client_t *client, M4U_PORT_ID port,
+ 	return 0;
+ }
+ 
++long m4u_dma_op(m4u_client_t *client, M4U_PORT_ID port,
++		unsigned long va, unsigned int size, unsigned int mva,
++		M4U_DMA_TYPE dma_type, M4U_DMA_DIR dma_dir)
++{
++	long ret;
++
++	mutex_lock(&m4u_buf_life_lock);
++	ret = __m4u_dma_op(client, port, va, size, mva, dma_type, dma_dir);
++	mutex_unlock(&m4u_buf_life_lock);
++	return ret;
++}
++
+ int m4u_dump_info(int m4u_index)
+ {
+ 	return 0;
+@@ -1310,7 +1352,7 @@ unsigned long m4u_mva_to_pa(m4u_client_t *client, M4U_PORT_ID port, unsigned int
+ 	return pa;
+ }
+ 
+-int m4u_query_mva_info(unsigned int mva, unsigned int size, unsigned int *real_mva,
++static int __m4u_query_mva_info(unsigned int mva, unsigned int size, unsigned int *real_mva,
+ 		       unsigned int *real_size)
+ {
+ 	m4u_buf_info_t *pMvaInfo;
+@@ -1331,13 +1373,24 @@ int m4u_query_mva_info(unsigned int mva, unsigned int size, unsigned int *real_m
+ 
+ 	return 0;
+ }
++
++int m4u_query_mva_info(unsigned int mva, unsigned int size, unsigned int *real_mva,
++		       unsigned int *real_size)
++{
++	int ret;
++
++	mutex_lock(&m4u_buf_life_lock);
++	ret = __m4u_query_mva_info(mva, size, real_mva, real_size);
++	mutex_unlock(&m4u_buf_life_lock);
++	return ret;
++}
+ EXPORT_SYMBOL(m4u_query_mva_info);
+ 
+ /***********************************************************/
+ /** map mva buffer to kernel va buffer
+ *   this function should ONLY used for DEBUG
+ ************************************************************/
+-int m4u_mva_map_kernel(unsigned int mva, unsigned int size, unsigned long *map_va,
++static int __m4u_mva_map_kernel(unsigned int mva, unsigned int size, unsigned long *map_va,
+ 		       unsigned int *map_size)
+ {
+ 	m4u_buf_info_t *pMvaInfo;
+@@ -1415,6 +1468,17 @@ error_out:
+ 
+ 	return ret;
+ }
++
++int m4u_mva_map_kernel(unsigned int mva, unsigned int size, unsigned long *map_va,
++		       unsigned int *map_size)
++{
++	int ret;
++
++	mutex_lock(&m4u_buf_life_lock);
++	ret = __m4u_mva_map_kernel(mva, size, map_va, map_size);
++	mutex_unlock(&m4u_buf_life_lock);
++	return ret;
++}
+ EXPORT_SYMBOL(m4u_mva_map_kernel);
+ 
+ int m4u_mva_unmap_kernel(unsigned int mva, unsigned int size, unsigned long map_va)
 diff --git a/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c b/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
-index 535f5ddf6..d313b363a 100644
+index 535f5ddf6..bb944c93f 100644
 --- a/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
 +++ b/drivers/misc/mediatek/mdp/mdp_ioctl_ex.c
-@@ -201,7 +201,7 @@ static s32 mdp_process_read_request(struct mdp_read_readback *req_user)
+@@ -130,6 +130,7 @@ struct mdp_readback_slot {
+ 	u32 count;
+ 	dma_addr_t pa_start;
+ 	void *fp;
++	u32 ref_cnt;	/* mp3-harness: queued jobs reading back into this slot */
+ };
+ 
+ static struct mdp_readback_slot rb_slot[MAX_RB_SLOT_NUM];
+@@ -137,6 +138,64 @@ static u64 alloc_slot[SLOT_GROUP_NUM];
+ static u64 alloc_slot_group;
+ static DEFINE_MUTEX(rb_slot_list_mutex);
+ 
++/*
++ * mp3-harness: CVE-2022-20052 (MTK ALPS05836642, use after free of a readback slot).
++ * A job that reads back into a slot pins it until the job's handle is destroyed, so the slot's
++ * DRAM can't be freed (and reused) while the hardware may still write to it.
++ */
++#define MDP_RB_MAX_REF 100000
++
++static void mdp_rb_slots_init(struct cmdqRecStruct *handle)
++{
++	u32 i;
++
++	for (i = 0; i < ARRAY_SIZE(handle->slot_ids); i++)
++		handle->slot_ids[i] = -1;
++}
++
++static s32 mdp_rb_slot_get(struct cmdqRecStruct *handle, u32 readback_id)
++{
++	u32 slot_id = readback_id >> SLOT_ID_SHIFT, j;
++	s32 ret = -EINVAL;
++
++	if (slot_id >= MAX_RB_SLOT_NUM)
++		return -EINVAL;
++	mutex_lock(&rb_slot_list_mutex);
++	for (j = 0; j < ARRAY_SIZE(handle->slot_ids); j++) {
++		if (handle->slot_ids[j] == slot_id) {
++			ret = 0;
++			break;
++		}
++		if (handle->slot_ids[j] == -1) {
++			if (rb_slot[slot_id].ref_cnt >= MDP_RB_MAX_REF)
++				break;
++			handle->slot_ids[j] = slot_id;
++			rb_slot[slot_id].ref_cnt++;
++			ret = 0;
++			break;
++		}
++	}
++	mutex_unlock(&rb_slot_list_mutex);
++	if (ret)
++		CMDQ_ERR("%s cannot pin readback slot %u\n", __func__, slot_id);
++	return ret;
++}
++
++static void mdp_task_destroy(struct cmdqRecStruct *handle)
++{
++	u32 i;
++
++	mutex_lock(&rb_slot_list_mutex);
++	for (i = 0; i < ARRAY_SIZE(handle->slot_ids); i++) {
++		if (handle->slot_ids[i] >= 0 && handle->slot_ids[i] < MAX_RB_SLOT_NUM &&
++		    rb_slot[handle->slot_ids[i]].ref_cnt)
++			rb_slot[handle->slot_ids[i]].ref_cnt--;
++		handle->slot_ids[i] = -1;
++	}
++	mutex_unlock(&rb_slot_list_mutex);
++	cmdq_task_destroy(handle);
++}
++
+ static dma_addr_t translate_read_id_ex(u32 read_id, u32 *slot_offset)
+ {
+ 	u32 slot_id;
+@@ -201,7 +260,7 @@ static s32 mdp_process_read_request(struct mdp_read_readback *req_user)
  		}
  
  		addrs = kcalloc(count, sizeof(u32), GFP_KERNEL);
@@ -11,7 +283,7 @@ index 535f5ddf6..d313b363a 100644
  			CMDQ_ERR("[READ_PA] fail to alloc addr buf\n");
  			status = -ENOMEM;
  			break;
-@@ -293,6 +293,10 @@ static unsigned long translate_fd(struct op_meta *meta,
+@@ -293,6 +352,10 @@ static unsigned long translate_fd(struct op_meta *meta,
  	} else {
  		mva = mapping_job->mvas[i];
  	}
@@ -22,6 +294,91 @@ index 535f5ddf6..d313b363a 100644
  	mva += meta->fd_offset;
  
  	return mva;
+@@ -339,6 +402,8 @@ static s32 translate_meta(struct op_meta *meta,
+ 		dram_addr = translate_read_id_ex(meta->readback_id, &offset);
+ 		if (!reg_addr || !dram_addr)
+ 			return -EINVAL;
++		if (mdp_rb_slot_get(handle, meta->readback_id))
++			return -EINVAL;
+ 		status = cmdq_op_read_reg_to_mem(handle,
+ 						dram_addr, offset, reg_addr);
+ #else
+@@ -591,6 +656,8 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 	}
+ 
+ 	status = cmdq_mdp_handle_create(&handle);
++	if (status >= 0)
++		mdp_rb_slots_init(handle);
+ 	if (status < 0) {
+ 		kfree(mapping_job);
+ 		return status;
+@@ -599,7 +666,7 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 	status = cmdq_mdp_handle_setup(&user_job, &desc_private, handle);
+ 	if (status < 0) {
+ 		CMDQ_ERR("%s setup fail:%d\n", __func__, status);
+-		cmdq_task_destroy(handle);
++		mdp_task_destroy(handle);
+ 		kfree(mapping_job);
+ 		return status;
+ 	}
+@@ -608,7 +675,7 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 	status = cmdq_mdp_handle_sec_setup(&user_job.secData, handle);
+ 	if (status < 0) {
+ 		CMDQ_ERR("%s config sec fail:%d\n", __func__, status);
+-		cmdq_task_destroy(handle);
++		mdp_task_destroy(handle);
+ 		kfree(mapping_job);
+ 		return status;
+ 	}
+@@ -626,7 +693,7 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 	}
+ 	if (status < 0) {
+ 		CMDQ_ERR("%s translate fail:%d\n", __func__, status);
+-		cmdq_task_destroy(handle);
++		mdp_task_destroy(handle);
+ 		kfree(mapping_job);
+ 		return status;
+ 	}
+@@ -634,7 +701,7 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 	status = mdp_implement_read_v1(&user_job, handle);
+ 	if (status < 0) {
+ 		CMDQ_ERR("%s read_v1 fail:%d\n", __func__, status);
+-		cmdq_task_destroy(handle);
++		mdp_task_destroy(handle);
+ 		kfree(mapping_job);
+ 		return status;
+ 	}
+@@ -650,7 +717,7 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
+ 			if (handle->thread != CMDQ_INVALID_THREAD)
+ 				cmdq_mdp_unlock_thread(handle);
+ #endif
+-			cmdq_task_destroy(handle);
++			mdp_task_destroy(handle);
+ 		}
+ 
+ 		kfree(mapping_job);
+@@ -751,7 +818,7 @@ s32 mdp_ioctl_async_wait(unsigned long param)
+ 	kfree(mapping_job);
+ 	CMDQ_SYSTRACE_BEGIN("%s destroy\n", __func__);
+ 	/* task now can release */
+-	cmdq_task_destroy(handle);
++	mdp_task_destroy(handle);
+ 	CMDQ_SYSTRACE_END();
+ 
+ 	return status;
+@@ -863,6 +930,12 @@ s32 mdp_ioctl_free_readback_slots(void *fp, unsigned long param)
+ 			fp, rb_slot[free_slot_index].fp);
+ 		return -EINVAL;
+ 	}
++	if (rb_slot[free_slot_index].ref_cnt) {	/* mp3-harness: CVE-2022-20052 */
++		mutex_unlock(&rb_slot_list_mutex);
++		CMDQ_ERR("%s slot %d in use by %u job(s)\n", __func__,
++			free_slot_index, rb_slot[free_slot_index].ref_cnt);
++		return -EBUSY;
++	}
+ 	alloc_slot[free_slot_group] &= ~(1LL << free_slot);
+ 	if (ffz(alloc_slot[free_slot_group]) != 64)
+ 		alloc_slot_group &= ~(1LL << free_slot_group);
 diff --git a/drivers/staging/android/ion/compat_ion.c b/drivers/staging/android/ion/compat_ion.c
 index ceb012ff8..1e8f8ff92 100644
 --- a/drivers/staging/android/ion/compat_ion.c
@@ -246,7 +603,7 @@ index ceb012ff8..1e8f8ff92 100644
  
  	err = get_user(cmd, &data->cmd);
 diff --git a/drivers/staging/android/ion/ion.c b/drivers/staging/android/ion/ion.c
-index 9d9853172..f9d91bb49 100644
+index 9d9853172..ea825cc80 100644
 --- a/drivers/staging/android/ion/ion.c
 +++ b/drivers/staging/android/ion/ion.c
 @@ -676,6 +676,12 @@ static void *ion_buffer_kmap_get(struct ion_buffer *buffer)
@@ -326,3 +683,95 @@ index 9d9853172..f9d91bb49 100644
  
  	pfn = page_to_pfn(ion_buffer_page(buffer->pages[vmf->pgoff]));
  	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
+@@ -1549,11 +1578,16 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+ 			ret = PTR_ERR(handle);
+ 			IONMSG("ion_import fail: fd=%d, ret=%d\n", data.fd.fd, ret);
+ 		} else {
++			/* mp3-harness: CVE-2022-20111 class: pass_to_user() drops our kernel ref, after
++			 * which a racing ION_IOC_FREE of the (guessable) id can free the handle. Read the
++			 * id while the ref is still held. */
++			int id = handle->id;
++
+ 			handle = pass_to_user(handle);
+ 			if (IS_ERR(handle))
+ 				ret = PTR_ERR(handle);
+ 			else
+-				data.handle.handle = handle->id;
++				data.handle.handle = id;
+ 		}
+ 		break;
+ 	}
+@@ -1989,8 +2023,11 @@ struct ion_handle *ion_drv_get_handle(struct ion_client *client, int user_handle
+ 			mutex_unlock(&client->lock);
+ 			return ERR_PTR(-EINVAL);
+ 		}
+-		ion_handle_get(handle);
++		/* mp3-harness: refcount overflow -> UAF (CVE-2022-20109 class) */
++		handle = ion_handle_get_check_overflow(handle);
+ 		mutex_unlock(&client->lock);
++		if (IS_ERR(handle))
++			return handle;
+ 	} else {
+ 		/* mp3-harness: stable removed the locked ion_handle_get_by_id(); same semantics here.
+ 		 * It returns ERR_PTR on failure, never NULL, so the old !handle test missed errors. */
+diff --git a/drivers/staging/android/ion/mtk/ion_drv.c b/drivers/staging/android/ion/mtk/ion_drv.c
+index 80e7c6776..76528b64c 100644
+--- a/drivers/staging/android/ion/mtk/ion_drv.c
++++ b/drivers/staging/android/ion/mtk/ion_drv.c
+@@ -302,6 +302,10 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd,
+ 		Param = *(ion_sys_data_t *) arg;
+ 	else
+ 		ret_copy = copy_from_user(&Param, (void __user *)arg, sizeof(ion_sys_data_t));
++	if (!from_kernel && ret_copy) {	/* mp3-harness: don't act on / echo back uninitialised stack */
++		IONMSG("%s copy_from_user fail\n", __func__);
++		return -EFAULT;
++	}
+ 
+ 	switch (Param.sys_cmd) {
+ 	case ION_SYS_CACHE_SYNC:
+diff --git a/drivers/staging/android/ion/mtk/ion_mm_heap.c b/drivers/staging/android/ion/mtk/ion_mm_heap.c
+index 5fdb3aa15..eb888ba7b 100644
+--- a/drivers/staging/android/ion/mtk/ion_mm_heap.c
++++ b/drivers/staging/android/ion/mtk/ion_mm_heap.c
+@@ -955,6 +955,10 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
+ 		Param = *(ion_mm_data_t *) arg;
+ 	else
+ 		ret_copy = copy_from_user(&Param, (void __user *)arg, sizeof(ion_mm_data_t));
++	if (!from_kernel && ret_copy) {	/* mp3-harness: don't act on / echo back uninitialised stack */
++		IONMSG("%s copy_from_user fail\n", __func__);
++		return -EFAULT;
++	}
+ 
+ 	switch (Param.mm_cmd) {
+ 	case ION_MM_CONFIG_BUFFER:
+@@ -1099,6 +1103,10 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
+ 	break;
+ 	case ION_MM_GET_DEBUG_INFO:
+ 	{
++		/* mp3-harness: CVE-2022-20037-class leak: the stored handle union may hold another
++		 * client's kernel ion_handle pointer; give the caller back its own handle value. */
++		struct ion_handle *kernel_handle_in = Param.buf_debug_info_param.kernel_handle;
++
+ 		struct ion_buffer *buffer;
+ 
+ 		if (Param.buf_debug_info_param.handle) {
+@@ -1118,16 +1126,19 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
+ 
+ 				buffer_sec = pBufferInfo->security;
+ 				ion_mm_copy_dbg_info(&(pBufferInfo->dbg_info), &(Param.buf_debug_info_param));
++				Param.buf_debug_info_param.kernel_handle = kernel_handle_in;	/* mp3-harness */
+ 			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_FB) {
+ 				ion_fb_buffer_info *pBufferInfo = buffer->priv_virt;
+ 
+ 				buffer_sec = pBufferInfo->security;
+ 				ion_mm_copy_dbg_info(&(pBufferInfo->dbg_info), &(Param.buf_debug_info_param));
++				Param.buf_debug_info_param.kernel_handle = kernel_handle_in;	/* mp3-harness */
+ 			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+ 				ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+ 
+ 				buffer_sec = pBufferInfo->security;
+ 				ion_mm_copy_dbg_info(&(pBufferInfo->dbg_info), &(Param.buf_debug_info_param));
++				Param.buf_debug_info_param.kernel_handle = kernel_handle_in;	/* mp3-harness */
+ 			} else {
+ 				IONMSG("[ion_heap]: Error. Cannot get dbg buffer that is not from %c heap.\n",
+ 						buffer->heap->type);
